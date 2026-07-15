@@ -185,13 +185,13 @@
 </div>
 
 <div class="container" style="display:none;" id="mainContainer">
-    <h1>Desk Staffing Coordinator Pro</h1>
+    <h1>Desk Schedule</h1>
     
     <!-- Navigation Tabs -->
     <div class="tabs">
-        <button id="btn-calendar-tab" class="tab-btn active" onclick="switchTab('calendar-tab')">Live Master Schedule</button>
-        <button id="btn-form-tab" class="tab-btn" onclick="switchTab('form-tab')">Worker Availability Input</button>
-        <button id="btn-manager-tab" class="tab-btn manager-style" onclick="switchTab('manager-tab')">Manager Control Panel</button>
+        <button id="btn-calendar-tab" class="tab-btn active" onclick="switchTab('calendar-tab')">Schedule Page</button>
+        <button id="btn-form-tab" class="tab-btn" onclick="switchTab('form-tab')">Availability Page</button>
+        <button id="btn-manager-tab" class="tab-btn manager-style" onclick="switchTab('manager-tab')">Manager Page</button>
     </div>
 
     <!-- TAB 1: MASTER CALENDAR -->
@@ -205,14 +205,14 @@
         <h2>Submit / Update Availability</h2>
         
         <div class="form-header">
-            <label for="workerSelect"><strong>Select Worker:</strong></label>
+            <label for="workerSelect"><strong>Select Employee:</strong></label>
             <select id="workerSelect" onchange="loadWorkerAvailability()"></select>
         </div>
 
         <div class="worker-dashboard-grid">
             <div>
                 <p style="font-size: 0.9rem; color: var(--time-color); margin-top:-10px; margin-bottom: 15px;">
-                    Check the blocks below where you are completely free to work.
+                    Check the blocks below where you are available to work the desk.
                 </p>
                 <div class="table-wrapper">
                     <table>
@@ -230,7 +230,7 @@
                 <textarea id="workerGlobalNote" rows="4" placeholder="Type availability notes, exception days, or specific time changes here..."></textarea>
                 
                 <div style="margin-top: 15px;">
-                    <button class="btn" id="saveAvailabilityBtn" onclick="saveAvailability()">Save & Update Database</button>
+                    <button class="btn" id="saveAvailabilityBtn" onclick="saveAvailability()">Save & Update</button>
                 </div>
             </div>
 
@@ -248,7 +248,7 @@
     <div id="auth-tab" class="tab-content">
         <div class="auth-gate">
             <h3 style="margin-bottom:10px;">🔒 Administrator Verification</h3>
-            <p style="font-size:0.85rem; color: var(--time-color); margin-bottom:20px;">Enter password to access database overrides.</p>
+            <p style="font-size:0.85rem; color: var(--time-color); margin-bottom:20px;">Enter password to access.</p>
             <div style="display:flex; flex-direction:column; gap:12px; align-items:stretch;">
                 <input type="password" id="managerPasswordInput" placeholder="Enter Manager Password..." onkeydown="if(event.key==='Enter') verifyAdminKey()">
                 <button class="btn btn-primary" onclick="verifyAdminKey()">Unlock Workspace</button>
@@ -268,7 +268,7 @@
                 <div class="table-wrapper">
                     <table>
                         <thead>
-                            <tr><th>Worker Name</th><th>Assigned Shifts</th></tr>
+                            <tr><th>Employee Name</th><th>Assigned Shifts</th></tr>
                         </thead>
                         <tbody id="statsTableBody"></tbody>
                     </table>
@@ -281,9 +281,9 @@
                     <div>
                         <label>Slot Selection</label>
                         <select id="overrideSlot" style="width:100%;">
-                            <option value="0">Worker Slot 1 (Standard)</option>
-                            <option value="1">Worker Slot 2 (Standard)</option>
-                            <option value="2">Worker Slot 3 (Extra Help Only)</option>
+                            <option value="0">Circ Desk 1</option>
+                            <option value="1">Circ Desk 2</option>
+                            <option value="2">Proactive</option>
                         </select>
                     </div>
                     <div>
@@ -301,14 +301,14 @@
             </div>
 
             <div>
-                <h3>Master Availability Auditor</h3>
+                <h3>Availability Auditor</h3>
                 <div class="form-header">
-                    <label><strong>View Matrix Grid For:</strong></label>
+                    <label><strong>View Availability For:</strong></label>
                     <select id="auditWorkerSelect" onchange="renderAuditMatrix()"></select>
                 </div>
                 
                 <div style="margin-bottom: 15px;">
-                    <strong style="font-size:0.9rem; display:block; margin-bottom:5px;">Worker General Note:</strong>
+                    <strong style="font-size:0.9rem; display:block; margin-bottom:5px;">Employee Notes:</strong>
                     <div class="audit-note-area" id="auditNotesDisplay"></div>
                 </div>
 
