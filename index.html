@@ -17,6 +17,19 @@
             --primary-color: #2563eb;
             --accent-color: #7c3aed;
         }
+        .slot-disabled {
+    background-color: #f8fafc;
+    border-bottom: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.slot-disabled::after {
+    content: '-';
+    color: #cbd5e1;
+    font-size: 1.5rem;
+}
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -183,7 +196,7 @@
 
     <!-- TAB 1: MASTER CALENDAR -->
     <div id="calendar-tab" class="tab-content active">
-        <h2>Weekly Schedule (2-Worker Default + Optional Manager 3rd Slot)</h2>
+        <h2 id="calendar-heading">Weekly Schedule</h2>
         <div class="calendar-grid" id="calendarGrid"></div>
     </div>
 
@@ -260,7 +273,12 @@
                         <tbody id="statsTableBody"></tbody>
                     </table>
                 </div>
-
+<h3>Rename Workers</h3>
+<div style="background: var(--header-bg); padding:15px; border-radius:6px; border: 1px solid var(--border-color);">
+    <select id="renameWorkerSelect" style="width:100%; margin-bottom:10px;"></select>
+    <input type="text" id="newWorkerName" placeholder="Enter new name..." style="width:100%; box-sizing:border-box; margin-bottom:10px;">
+    <button class="btn btn-primary" onclick="renameWorker()">Update Name</button>
+</div>
                 <h3>Manual Scheduling Overrides</h3>
                 <div style="background: var(--header-bg); padding:15px; border-radius:6px; border: 1px solid var(--border-color); display:flex; flex-direction:column; gap:10px;">
                     <div><label>Day</label><select id="overrideDay" style="width:100%;"></select></div>
@@ -315,6 +333,7 @@
 </div>
 
 <script>
+let workerNames = {}; // Store custom names here
     // --- SUPABASE CONFIGURATION ---
     // REPLACE THESE WITH YOUR ACTUAL SUPABASE URL AND ANON KEY
     const SUPABASE_URL = 'https://gtexbtwfbdsddznilujo.supabase.co'; 
@@ -402,6 +421,12 @@
         generateSchedule(); 
         setupFormAndSelectors();
         loadWorkerAvailability();
+        if (data.worker_names) {
+    workerNames = data.worker_names;
+} else {
+    // Default names if none exist
+    WORKERS.forEach(w => workerNames[w] = w);
+}
     }
 
     // Push Availability updates to Supabase
@@ -487,37 +512,55 @@
     }
 
     function setupFormAndSelectors() {
-        const select = document.getElementById('workerSelect');
-        const auditSelect = document.getElementById('auditWorkerSelect');
-        const overrideWorker = document.getElementById('overrideWorker');
+    const select = document.getElementById('workerSelect');
+    const auditSelect = document.getElementById('auditWorkerSelect');
+    const overrideWorker = document.getElementById('overrideWorker');
+    
+    WORKERS.forEach(w => {
+    const displayName = workerNames[w] || w; // Use custom name or default
+    select.appendChild(new Option(displayName, w)); // Value is ID (e.g., "Worker 1"), Text is Name
+    auditSelect.appendChild(new Option(displayName, w));
+    overrideWorker.appendChild(new Option(displayName, w));
+    renameWorkerSelect.appendChild(new Option(displayName, w));
+});
+
+    const daySelect = document.getElementById('overrideDay');
+    DAYS.forEach(day => daySelect.appendChild(new Option(day, day)));
+    const hourSelect = document.getElementById('overrideHour');
+    HOURS.forEach((hour, idx) => hourSelect.appendChild(new Option(HOUR_LABELS[idx], hour)));
+
+    const tbody = document.getElementById('formTableBody');
+    HOURS.forEach((hour, hIndex) => {
+        let row = document.createElement('tr');
+        let timeTd = document.createElement('td');
+        timeTd.innerHTML = `<strong>${HOUR_LABELS[hIndex]}</strong>`;
+        row.appendChild(timeTd);
+
+        // --- NEW LOGIC START ---
+        // Convert "9am" -> 9, "12pm" -> 12, "1pm" -> 13, etc.
+        let hourVal = parseInt(hour);
+        if (hour.includes('pm') && hourVal !== 12) hourVal += 12;
+
+        DAYS.forEach(day => {
+            const isFriday = (day === 'Friday');
+            const isDisabled = (isFriday && (hourVal < 10 || hourVal >= 17));
+
+            let td = document.createElement('td');
+            td.style.textAlign = 'center';
+            td.innerHTML = `
+                <label class="checkbox-label" style="${isDisabled ? 'opacity: 0.3; cursor: not-allowed;' : ''}">
+                    <input type="checkbox" 
+                           data-day="${day}" 
+                           data-hour="${hour}" 
+                           ${isDisabled ? 'disabled' : ''}>
+                </label>`;
+            row.appendChild(td);
+        });
+        // --- NEW LOGIC END ---
         
-        WORKERS.forEach(worker => {
-            select.appendChild(new Option(worker, worker));
-            auditSelect.appendChild(new Option(worker, worker));
-            overrideWorker.appendChild(new Option(worker, worker));
-        });
-
-        const daySelect = document.getElementById('overrideDay');
-        DAYS.forEach(day => daySelect.appendChild(new Option(day, day)));
-        const hourSelect = document.getElementById('overrideHour');
-        HOURS.forEach((hour, idx) => hourSelect.appendChild(new Option(HOUR_LABELS[idx], hour)));
-
-        const tbody = document.getElementById('formTableBody');
-        HOURS.forEach((hour, hIndex) => {
-            let row = document.createElement('tr');
-            let timeTd = document.createElement('td');
-            timeTd.innerHTML = `<strong>${HOUR_LABELS[hIndex]}</strong>`;
-            row.appendChild(timeTd);
-
-            DAYS.forEach(day => {
-                let td = document.createElement('td');
-                td.style.textAlign = 'center';
-                td.innerHTML = `<label class="checkbox-label"><input type="checkbox" data-day="${day}" data-hour="${hour}"></label>`;
-                row.appendChild(td);
-            });
-            tbody.appendChild(row);
-        });
-    }
+        tbody.appendChild(row);
+    });
+}
 
     function loadWorkerAvailability() {
         const currentWorker = document.getElementById('workerSelect').value;
@@ -568,45 +611,64 @@
                 grid.appendChild(labelDiv);
             }
             DAYS.forEach((day, dIndex) => {
-                let cellDiv = document.createElement('div');
-                cellDiv.className = 'day-slot'; cellDiv.style.gridRowStart = hIndex + 2; cellDiv.style.gridColumnStart = dIndex + 2;
+    // 1. Calculate hour logic
+    let hourVal = parseInt(hour);
+    if (hour.includes('pm') && hourVal !== 12) hourVal += 12;
 
-                let availableStaff = WORKERS.filter(worker => availabilityData[worker]?.[day]?.[hour] === true);
-                availableStaff.sort((a, b) => finalCalculatedWorkloads[a] - finalCalculatedWorkloads[b]);
+    // 2. Check if this is a restricted Friday slot
+    const isFriday = (day === 'Friday');
+    // Disabled if Friday AND (before 10am OR 5pm or later)
+    if (isFriday && (hourVal < 10 || hourVal >= 17)) {
+        let disabledDiv = document.createElement('div');
+        disabledDiv.className = 'slot-disabled';
+        disabledDiv.style.gridRowStart = hIndex + 2;
+        disabledDiv.style.gridColumnStart = dIndex + 2;
+        if(grid) grid.appendChild(disabledDiv);
+        return; // This skips the rest of the logic for this cell
+    }
 
-                let assigned = availableStaff.slice(0, 2);
-                let systemOverrides = overrideData[day]?.[hour] || [null, null, null];
+    // 3. Normal schedule rendering logic
+    let cellDiv = document.createElement('div');
+    cellDiv.className = 'day-slot'; 
+    cellDiv.style.gridRowStart = hIndex + 2; 
+    cellDiv.style.gridColumnStart = dIndex + 2;
 
-                for (let i = 0; i < 2; i++) {
-                    let pill = document.createElement('div');
-                    if (systemOverrides[i] !== null) {
-                        if(systemOverrides[i] !== "LEAVE_EMPTY") {
-                            pill.className = 'worker-pill override'; pill.textContent = systemOverrides[i];
-                            finalCalculatedWorkloads[systemOverrides[i]]++;
-                            individualWorkerSchedules[systemOverrides[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: false });
-                        } else {
-                            pill.className = 'worker-pill empty'; pill.textContent = 'Forced Empty';
-                            emptySlotsTracker.push({ day, hourLabel: HOUR_LABELS[hIndex], slotIndex: i + 1 });
-                        }
-                    } else if (assigned[i]) {
-                        pill.className = 'worker-pill'; pill.textContent = assigned[i];
-                        finalCalculatedWorkloads[assigned[i]]++;
-                        individualWorkerSchedules[assigned[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: false });
-                    } else {
-                        pill.className = 'worker-pill empty'; pill.textContent = 'Unstaffed Slot';
-                        emptySlotsTracker.push({ day, hourLabel: HOUR_LABELS[hIndex], slotIndex: i + 1 });
-                    }
-                    cellDiv.appendChild(pill);
-                }
+    let availableStaff = WORKERS.filter(worker => availabilityData[worker]?.[day]?.[hour] === true);
+    availableStaff.sort((a, b) => finalCalculatedWorkloads[a] - finalCalculatedWorkloads[b]);
 
-                if (systemOverrides[2] !== null && systemOverrides[2] !== "LEAVE_EMPTY") {
-                    let extraPill = document.createElement('div'); extraPill.className = 'worker-pill extra-help'; extraPill.textContent = systemOverrides[2];
-                    finalCalculatedWorkloads[systemOverrides[2]]++;
-                    individualWorkerSchedules[systemOverrides[2]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: true });
-                    cellDiv.appendChild(extraPill);
-                }
-                if(grid) grid.appendChild(cellDiv);
-            });
+    let assigned = availableStaff.slice(0, 2);
+    let systemOverrides = overrideData[day]?.[hour] || [null, null, null];
+
+    for (let i = 0; i < 2; i++) {
+        let pill = document.createElement('div');
+        if (systemOverrides[i] !== null) {
+            if(systemOverrides[i] !== "LEAVE_EMPTY") {
+                pill.className = 'worker-pill override'; pill.textContent = systemOverrides[i];
+                finalCalculatedWorkloads[systemOverrides[i]]++;
+                individualWorkerSchedules[systemOverrides[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: false });
+            } else {
+                pill.className = 'worker-pill empty'; pill.textContent = 'Forced Empty';
+                emptySlotsTracker.push({ day, hourLabel: HOUR_LABELS[hIndex], slotIndex: i + 1 });
+            }
+        } else if (assigned[i]) {
+            pill.className = 'worker-pill'; pill.textContent = assigned[i];
+            finalCalculatedWorkloads[assigned[i]]++;
+            individualWorkerSchedules[assigned[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: false });
+        } else {
+            pill.className = 'worker-pill empty'; pill.textContent = 'Unstaffed Slot';
+            emptySlotsTracker.push({ day, hourLabel: HOUR_LABELS[hIndex], slotIndex: i + 1 });
+        }
+        cellDiv.appendChild(pill);
+    }
+
+    if (systemOverrides[2] !== null && systemOverrides[2] !== "LEAVE_EMPTY") {
+        let extraPill = document.createElement('div'); extraPill.className = 'worker-pill extra-help'; extraPill.textContent = systemOverrides[2];
+        finalCalculatedWorkloads[systemOverrides[2]]++;
+        individualWorkerSchedules[systemOverrides[2]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: true });
+        cellDiv.appendChild(extraPill);
+    }
+    if(grid) grid.appendChild(cellDiv);
+});
         });
     }
 
@@ -685,11 +747,46 @@
         document.getElementById('clearOverrideBtn').disabled = false;
         alert(`Override removed and saved.`);
     }
+    function updateHeadingDate() {
+    const today = new Date();
+    // Calculate the start of the week (the most recent Monday)
+    const dayOfWeek = today.getDay(); // 0 is Sunday, 1 is Monday...
+    const diff = today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
+    const monday = new Date(today.setDate(diff));
+    
+    // Calculate the Friday of the same week
+    const friday = new Date(monday);
+    friday.setDate(monday.getDate() + 4);
 
-    // Initialize App Boot sequence pulling from Cloud
-    document.addEventListener("DOMContentLoaded", () => {
-        bootDatabaseSync();
-    });
+    const options = { month: 'long', day: 'numeric' };
+    const dateString = `${monday.toLocaleDateString(undefined, options)} - ${friday.toLocaleDateString(undefined, options)}, ${monday.getFullYear()}`;
+    
+    document.getElementById('calendar-heading').textContent = `Weekly Schedule: ${dateString}`;
+}
+async function renameWorker() {
+    const originalName = document.getElementById('renameWorkerSelect').value;
+    const newName = document.getElementById('newWorkerName').value;
+
+    if (!newName) return alert("Please enter a name.");
+
+    workerNames[originalName] = newName;
+
+    // Push to Supabase
+    await supabaseClient
+        .from('app_state')
+        .update({ worker_names: workerNames })
+        .eq('id', 1);
+
+    alert("Worker renamed! Refreshing UI...");
+    location.reload(); // Simplest way to refresh all dropdowns and labels
+}
+// Call this function when the page finishes loading
+document.addEventListener("DOMContentLoaded", () => {
+    updateHeadingDate();
+    bootDatabaseSync();
+});
+
+   
 </script>
 </body>
 </html>
