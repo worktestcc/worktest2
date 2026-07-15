@@ -273,6 +273,12 @@
                         <tbody id="statsTableBody"></tbody>
                     </table>
                 </div>
+                <h3>Rename Workers</h3>
+<div style="background: var(--header-bg); padding:15px; border-radius:6px; border: 1px solid var(--border-color);">
+    <select id="renameWorkerSelect" style="width:100%; margin-bottom:10px;"></select>
+    <input type="text" id="newWorkerName" placeholder="Enter new name..." style="width:100%; box-sizing:border-box; margin-bottom:10px;">
+    <button class="btn btn-primary" onclick="renameWorker()">Update Name</button>
+</div>
 
                 <h3>Manual Scheduling Overrides</h3>
                 <div style="background: var(--header-bg); padding:15px; border-radius:6px; border: 1px solid var(--border-color); display:flex; flex-direction:column; gap:10px;">
@@ -328,6 +334,7 @@
 </div>
 
 <script>
+let workerNames = {}; // Store custom names here
     // --- SUPABASE CONFIGURATION ---
     // REPLACE THESE WITH YOUR ACTUAL SUPABASE URL AND ANON KEY
     const SUPABASE_URL = 'https://gtexbtwfbdsddznilujo.supabase.co'; 
@@ -378,44 +385,53 @@
 
     // Fetches data from Supabase on page load
     async function bootDatabaseSync() {
-        createEmptyDataStructure(); // Set safe defaults
+    createEmptyDataStructure(); // Set safe defaults
+    
+    // Initialize default names in local memory first
+    WORKERS.forEach(w => workerNames[w] = w);
 
-        try {
-            const { data, error } = await supabaseClient
-                .from('app_state')
-                .select('*')
-                .eq('id', 1)
-                .single();
+    try {
+        const { data, error } = await supabaseClient
+            .from('app_state')
+            .select('*')
+            .eq('id', 1)
+            .single();
 
-            if (error && error.code !== 'PGRST116') {
-                console.error("Database connection error:", error);
-                alert("Failed to connect to the database. Running in offline/unsaved mode.");
-            } else if (data) {
-                // Merge database data with defaults (prevents breaking if workers are added later)
-                if (data.availability) Object.assign(availabilityData, data.availability);
-                if (data.notes) Object.assign(globalNotesData, data.notes);
-                if (data.overrides) Object.assign(overrideData, data.overrides);
-            } else {
-                // If row doesn't exist yet, insert the empty defaults
-                await supabaseClient.from('app_state').insert([{ 
-                    id: 1, 
-                    availability: availabilityData, 
-                    notes: globalNotesData, 
-                    overrides: overrideData 
-                }]);
+        if (error && error.code !== 'PGRST116') {
+            console.error("Database connection error:", error);
+            alert("Failed to connect to the database. Running in offline/unsaved mode.");
+        } else if (data) {
+            // Merge database data with defaults
+            if (data.availability) Object.assign(availabilityData, data.availability);
+            if (data.notes) Object.assign(globalNotesData, data.notes);
+            if (data.overrides) Object.assign(overrideData, data.overrides);
+            
+            // --- NEW: Load saved names if they exist ---
+            if (data.worker_names) {
+                workerNames = data.worker_names;
             }
-        } catch(err) {
-            console.error("Boot error:", err);
+        } else {
+            // If row doesn't exist yet, insert the empty defaults
+            await supabaseClient.from('app_state').insert([{ 
+                id: 1, 
+                availability: availabilityData, 
+                notes: globalNotesData, 
+                overrides: overrideData,
+                worker_names: workerNames // --- NEW: Include names in initial insert ---
+            }]);
         }
-
-        // Remove loading screen and render UI
-        document.getElementById('loadingOverlay').style.display = 'none';
-        document.getElementById('mainContainer').style.display = 'block';
-
-        generateSchedule(); 
-        setupFormAndSelectors();
-        loadWorkerAvailability();
+    } catch(err) {
+        console.error("Boot error:", err);
     }
+
+    // Remove loading screen and render UI
+    document.getElementById('loadingOverlay').style.display = 'none';
+    document.getElementById('mainContainer').style.display = 'block';
+
+    generateSchedule(); 
+    setupFormAndSelectors();
+    loadWorkerAvailability();
+}
 
     // Push Availability updates to Supabase
     async function saveAvailability() {
@@ -499,30 +515,47 @@
         }
     }
 
-    function setupFormAndSelectors() {
+   function setupFormAndSelectors() {
     const select = document.getElementById('workerSelect');
     const auditSelect = document.getElementById('auditWorkerSelect');
     const overrideWorker = document.getElementById('overrideWorker');
+    const renameWorkerSelect = document.getElementById('renameWorkerSelect'); // Added this
+    
+    // Clear existing options to prevent duplication on refresh
+    select.innerHTML = '';
+    auditSelect.innerHTML = '';
+    overrideWorker.innerHTML = '';
+    renameWorkerSelect.innerHTML = '';
     
     WORKERS.forEach(worker => {
-        select.appendChild(new Option(worker, worker));
-        auditSelect.appendChild(new Option(worker, worker));
-        overrideWorker.appendChild(new Option(worker, worker));
+        // Use the custom name if it exists, otherwise default to the system ID
+        const displayName = workerNames[worker] || worker;
+        
+        select.appendChild(new Option(displayName, worker));
+        auditSelect.appendChild(new Option(displayName, worker));
+        overrideWorker.appendChild(new Option(displayName, worker));
+        renameWorkerSelect.appendChild(new Option(displayName, worker));
     });
 
     const daySelect = document.getElementById('overrideDay');
+    // Clear to avoid duplicates
+    daySelect.innerHTML = '';
     DAYS.forEach(day => daySelect.appendChild(new Option(day, day)));
+    
     const hourSelect = document.getElementById('overrideHour');
+    // Clear to avoid duplicates
+    hourSelect.innerHTML = '';
     HOURS.forEach((hour, idx) => hourSelect.appendChild(new Option(HOUR_LABELS[idx], hour)));
 
     const tbody = document.getElementById('formTableBody');
+    tbody.innerHTML = ''; // Ensure table is cleared
+
     HOURS.forEach((hour, hIndex) => {
         let row = document.createElement('tr');
         let timeTd = document.createElement('td');
         timeTd.innerHTML = `<strong>${HOUR_LABELS[hIndex]}</strong>`;
         row.appendChild(timeTd);
 
-        // --- NEW LOGIC START ---
         // Convert "9am" -> 9, "12pm" -> 12, "1pm" -> 13, etc.
         let hourVal = parseInt(hour);
         if (hour.includes('pm') && hourVal !== 12) hourVal += 12;
@@ -542,7 +575,6 @@
                 </label>`;
             row.appendChild(td);
         });
-        // --- NEW LOGIC END ---
         
         tbody.appendChild(row);
     });
@@ -755,7 +787,23 @@ document.addEventListener("DOMContentLoaded", () => {
     updateHeadingDate();
     bootDatabaseSync();
 });
+async function renameWorker() {
+    const originalName = document.getElementById('renameWorkerSelect').value;
+    const newName = document.getElementById('newWorkerName').value;
 
+    if (!newName) return alert("Please enter a name.");
+
+    workerNames[originalName] = newName;
+
+    // Push to Supabase
+    await supabaseClient
+        .from('app_state')
+        .update({ worker_names: workerNames })
+        .eq('id', 1);
+
+    alert("Worker renamed! Refreshing UI...");
+    location.reload(); // Simplest way to refresh all dropdowns and labels
+}
    
 </script>
 </body>
