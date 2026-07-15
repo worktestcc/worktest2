@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Desk Staffing Coordinator Pro (Protected Access)</title>
+    <style>
+        :root {
+            --border-color: #e2e8f0;
+            --header-bg: #f8fafc;
+            --text-color: #1e293b;
+            --time-color: #64748b;
+            --primary-color: #2563eb;
+            --accent-color: #7c3aed;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            background-color: #f1f5f9;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        h1, h2, h3 {
+            color: #0f172a;
+            margin-top: 0;
+        }
+
+        /* Tabs Navigation UI */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--time-color);
+            cursor: pointer;
+            border-radius: 6px;
+        }
+
+        .tab-btn.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .tab-btn.manager-style.active {
+            background-color: var(--accent-color);
+        }
+
+        .tab-content {
+            display: none;
+            background: #ffffff;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Forms & Inputs */
+        .form-header {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        select, input[type="text"], input[type="password"], textarea {
+            padding: 8px 16px;
+            font-size: 1rem;
+            border-radius: 6px;
+            border: 1px solid #cbd5e1;
+            background-color: white;
+        }
+
+        textarea {
+            width: 100%;
+            box-sizing: border-box;
+            font-family: inherit;
+            resize: vertical;
+        }
+
+        .btn {
+            background-color: #10b981;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .btn:hover { background-color: #059669; }
+        
+        .btn-primary { background-color: var(--primary-color); }
+        .btn-primary:hover { background-color: #1d4ed8; }
+
+        /* Password Gateway UI */
+        .auth-gate {
+            max-width: 400px;
+            margin: 40px auto;
+            text-align: center;
+            padding: 30px;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-color);
+        }
+
+        /* Tables styling */
+        .table-wrapper {
+            overflow-x: auto;
+            margin-bottom: 25px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 12px;
+            font-size: 0.9rem;
+        }
+
+        th { background-color: var(--header-bg); font-weight: 600; }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            cursor: pointer;
+            height: 100%;
+            width: 100%;
+        }
+
+        /* Alerts Section Styling */
+        .alert-panel {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            border: 1px solid transparent;
+        }
+        .alert-panel.success {
+            background-color: #ecfdf5;
+            border-color: #a7f3d0;
+            color: #065f46;
+        }
+        .alert-panel.danger {
+            background-color: #fef2f2;
+            border-color: #fecaca;
+            color: #991b1b;
+        }
+        .alert-list {
+            margin: 8px 0 0 20px;
+            padding: 0;
+            font-size: 0.9rem;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        /* Calendar Grid Layout Blueprint */
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: 90px repeat(5, minmax(170px, 1fr));
+            grid-template-rows: 40px repeat(10, auto);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .grid-header {
+            background-color: var(--header-bg);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-bottom: 2px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+            padding: 10px 0;
+        }
+
+        .time-slot {
+            font-size: 0.85rem;
+            color: var(--time-color);
+            font-weight: 500;
+            padding-right: 10px;
+            display: flex;
+            justify-content: flex-end;
+            align-items: flex-start;
+            padding-top: 10px;
+            grid-column: 1;
+            border-right: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            background: #fff;
+        }
+
+        .day-slot {
+            border-bottom: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+            background: #fff;
+            padding: 10px 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            box-sizing: border-box;
+            min-height: 85px;
+        }
+
+        /* Worker Slots Display Pills */
+        .worker-pill {
+            background-color: #eff6ff;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-align: center;
+            position: relative;
+        }
+
+        .worker-pill.override {
+            background-color: #f3e8ff;
+            color: #6b21a8;
+            border: 1px solid #e9d5ff;
+            font-weight: bold;
+        }
+        
+        .worker-pill.override::after {
+            content: '★ Fixed';
+            position: absolute;
+            right: 4px;
+            top: 2px;
+            font-size: 0.65rem;
+            opacity: 0.7;
+        }
+
+        .worker-pill.extra-help {
+            background-color: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fde68a;
+            font-weight: bold;
+        }
+        .worker-pill.extra-help::after {
+            content: '➕ Extra';
+            position: absolute;
+            right: 4px;
+            top: 2px;
+            font-size: 0.65rem;
+            opacity: 0.8;
+        }
+
+        .worker-pill.empty {
+            background-color: #fff1f2;
+            color: #9f1239;
+            border: 1px solid #fecdd3;
+            border-style: dashed;
+        }
+
+        /* Worker-facing Dashboard Insights Panel */
+        .worker-dashboard-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .worker-dashboard-grid { grid-template-columns: 1fr; }
+        }
+
+        .insight-card {
+            background: var(--header-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .shift-badge {
+            display: inline-block;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .live-shift-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .live-shift-list li {
+            padding: 8px 12px;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .live-shift-list .extra-tag {
+            font-size: 0.75rem;
+            background: #fef3c7;
+            color: #92400e;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        /* Layout Grid System mapping */
+        .manager-layout {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 1024px) {
+            .manager-layout { grid-template-columns: 1fr; }
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .status-dot.available { background-color: #10b981; }
+        .status-dot.unavailable { background-color: #ef4444; }
+
+        .audit-note-area {
+            background: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 0.9rem;
+            color: #334155;
+            min-height: 50px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Desk Staffing Coordinator Pro</h1>
+    
+    <!-- Navigation Tabs -->
+    <div class="tabs">
+        <button id="btn-calendar-tab" class="tab-btn active" onclick="switchTab('calendar-tab')">Live Master Schedule</button>
+        <button id="btn-form-tab" class="tab-btn" onclick="switchTab('form-tab')">Worker Availability Input</button>
+        <button id="btn-manager-tab" class="tab-btn manager-style" onclick="switchTab('manager-tab')">Manager Control Panel</button>
+    </div>
+
+    <!-- TAB 1: MASTER CALENDAR -->
+    <div id="calendar-tab" class="tab-content active">
+        <h2>Weekly Schedule (2-Worker Default + Optional Manager 3rd Slot)</h2>
+        <div class="calendar-grid" id="calendarGrid"></div>
+    </div>
+
+    <!-- TAB 2: WORKER INPUT AVAILABILITY FORM -->
+    <div id="form-tab" class="tab-content">
+        <h2>Submit / Update Availability</h2>
+        
+        <div class="form-header">
+            <label for="workerSelect"><strong>Select Worker:</strong></label>
+            <select id="workerSelect" onchange="loadWorkerAvailability()"></select>
+        </div>
+
+        <div class="worker-dashboard-grid">
+            <!-- Left Side: Interactive Availability Grid -->
+            <div>
+                <p style="font-size: 0.9rem; color: var(--time-color); margin-top:-10px; margin-bottom: 15px;">
+                    Check the blocks below where you are completely free to work.
+                </p>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Time Slot</th>
+                                <th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th><th>Friday</th>
+                            </tr>
+                        </thead>
+                        <tbody id="formTableBody"></tbody>
+                    </table>
+                </div>
+
+                <h3>Notes & Scheduling Changes</h3>
+                <p style="font-size: 0.85rem; color: var(--time-color); margin-top:-5px; margin-bottom: 10px;">
+                    List specific notes or scheduling considerations here for the manager (e.g., class times, appointment adjustments).
+                </p>
+                <textarea id="workerGlobalNote" rows="4" placeholder="Type availability notes, exception days, or specific time changes here..."></textarea>
+                
+                <div style="margin-top: 15px;">
+                    <button class="btn" onclick="saveAvailability()">Save & Update Schedule</button>
+                </div>
+            </div>
+
+            <!-- Right Side: Personal Work Dashboard Insights Panel -->
+            <div>
+                <div class="insight-card">
+                    <h3 id="dashWorkerName">Your Assigned Shifts</h3>
+                    <p style="font-size: 0.85rem; color: var(--time-color); margin-top:-5px; margin-bottom: 15px;">
+                        This list updates automatically when changes are made.
+                    </p>
+                    <div class="shift-badge" id="dashTotalShifts">0 Shifts</div>
+                    
+                    <h4 style="margin: 10px 0 8px 0; font-size: 0.95rem;">Assigned Schedule:</h4>
+                    <ul class="live-shift-list" id="dashShiftList"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECURITY GATEWAY INTERFACE (Renders inside the framework dynamically) -->
+    <div id="auth-tab" class="tab-content">
+        <div class="auth-gate">
+            <h3 style="margin-bottom:10px;">🔒 Administrator Verification Required</h3>
+            <p style="font-size:0.85rem; color: var(--time-color); margin-bottom:20px;">Please enter the password to access administrative configurations.</p>
+            <div style="display:flex; flex-direction:column; gap:12px; align-items:stretch;">
+                <input type="password" id="managerPasswordInput" placeholder="Enter Manager Password..." onkeydown="if(event.key==='Enter') verifyAdminKey()">
+                <button class="btn btn-primary" onclick="verifyAdminKey()">Unlock Workspace</button>
+            </div>
+            <div id="authFeedbackMessage" style="color:#ef4444; font-size:0.85rem; margin-top:10px; font-weight:600; display:none;">Incorrect Password. Access Denied.</div>
+        </div>
+    </div>
+
+    <!-- TAB 3: MANAGER EXCLUSIVE CONTROL BOARD -->
+    <div id="manager-tab" class="tab-content">
+        <h2>Manager Administration Board</h2>
+        
+        <!-- Unstaffed Empty Shifts Alert Dashboard Panel Container -->
+        <div id="coverageAlertPanel" class="alert-panel"></div>
+        
+        <div class="manager-layout">
+            <!-- Left Side Panel Metrics Stats Stack -->
+            <div>
+                <h3>Weekly Workload Statistics</h3>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Worker Name</th>
+                                <th>Assigned Shifts</th>
+                            </tr>
+                        </thead>
+                        <tbody id="statsTableBody"></tbody>
+                    </table>
+                </div>
+
+                <h3>Manual Scheduling Overrides</h3>
+                <p style="font-size:0.85rem; color: var(--time-color); margin-bottom: 12px;">Force-assign workers to specific slots, skipping automated rules.</p>
+                
+                <div style="background: var(--header-bg); padding:15px; border-radius:6px; border: 1px solid var(--border-color); display:flex; flex-direction:column; gap:10px;">
+                    <div>
+                        <label style="display:block; font-size:0.85rem; font-weight:600; margin-bottom:4px;">Day</label>
+                        <select id="overrideDay" style="width:100%;"></select>
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.85rem; font-weight:600; margin-bottom:4px;">Hour Block</label>
+                        <select id="overrideHour" style="width:100%;"></select>
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.85rem; font-weight:600; margin-bottom:4px;">Slot Selection</label>
+                        <select id="overrideSlot" style="width:100%;">
+                            <option value="0">Worker Slot 1 (Standard)</option>
+                            <option value="1">Worker Slot 2 (Standard)</option>
+                            <option value="2">Worker Slot 3 (Extra Help Only)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.85rem; font-weight:600; margin-bottom:4px;">Assign Staff Member</label>
+                        <select id="overrideWorker" style="width:100%;">
+                            <option value="">-- Choose Worker --</option>
+                            <option value="LEAVE_EMPTY">[FORCE LEAVE SLOT UNSTAFFED]</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; gap:10px; margin-top:5px;">
+                        <button class="btn btn-primary" style="flex:1;" onclick="applyOverride()">Apply Override</button>
+                        <button class="btn" style="background-color:#64748b; flex:1;" onclick="clearOverride()">Clear Override</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Side Panel: Matrix Data Visual Auditor View -->
+            <div>
+                <h3>Master Availability Auditor</h3>
+                <div class="form-header">
+                    <label for="auditWorkerSelect"><strong>View Matrix Grid For:</strong></label>
+                    <select id="auditWorkerSelect" onchange="renderAuditMatrix()"></select>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <strong style="font-size:0.9rem; display:block; margin-bottom:5px;">Worker General Note:</strong>
+                    <div class="audit-note-area" id="auditNotesDisplay">No notes submitted by this worker.</div>
+                </div>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Time Slot</th>
+                                <th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th><th>Friday</th>
+                            </tr>
+                        </thead>
+                        <tbody id="auditTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // System Master Password Configuration Value String
+    const MANAGER_SECRET_KEY = "admin123";
+
+    const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const HOURS = ['9am', '10am', '11am', '12pm', '1pm', '2pm', '3pm', '4pm', '5pm', '6pm'];
+    const HOUR_LABELS = ['9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM', '6:00 PM'];
+    const WORKERS = Array.from({length: 16}, (_, i) => `Worker ${i + 1}`);
+
+    // Application state
+    let availabilityData = {};
+    let globalNotesData = {}; 
+    let overrideData = {}; 
+    let finalCalculatedWorkloads = {};
+    let emptySlotsTracker = []; 
+    let individualWorkerSchedules = {}; 
+    let isAdminAuthenticated = false; // Persistent session toggle memory flag variable
+
+    function initData() {
+        WORKERS.forEach(worker => {
+            availabilityData[worker] = {};
+            globalNotesData[worker] = ""; 
+            DAYS.forEach(day => {
+                availabilityData[worker][day] = {};
+                HOURS.forEach(hour => {
+                    availabilityData[worker][day][hour] = Math.random() > 0.55;
+                });
+            });
+        });
+
+        DAYS.forEach(day => {
+            overrideData[day] = {};
+            HOURS.forEach(hour => {
+                overrideData[day][hour] = [null, null, null]; 
+            });
+        });
+    }
+
+    function switchTab(tabId) {
+        // Trap navigation rules: route immediately if requesting manager console but unverified
+        if(tabId === 'manager-tab' && !isAdminAuthenticated) {
+            tabId = 'auth-tab'; 
+        }
+
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        
+        document.getElementById(tabId).classList.add('active');
+        
+        // Ensure accurate styling highlights on menu tabs selection bar framework
+        if(tabId === 'auth-tab') {
+            document.getElementById('btn-manager-tab').classList.add('active');
+            document.getElementById('managerPasswordInput').focus();
+        } else {
+            const connectedBtn = document.getElementById(`btn-${tabId}`);
+            if(connectedBtn) connectedBtn.classList.add('active');
+        }
+        
+        generateSchedule();
+        
+        if (tabId === 'form-tab') {
+            loadWorkerAvailability(); 
+        } else if (tabId === 'manager-tab') {
+            renderStatsTable();
+            renderAuditMatrix();
+            renderCoverageAlerts();
+        }
+    }
+
+    function verifyAdminKey() {
+        const userInput = document.getElementById('managerPasswordInput').value;
+        const feedback = document.getElementById('authFeedbackMessage');
+
+        if(userInput === MANAGER_SECRET_KEY) {
+            isAdminAuthenticated = true;
+            feedback.style.display = "none";
+            document.getElementById('managerPasswordInput').value = "";
+            switchTab('manager-tab'); // Route straight past gate into board workspace
+        } else {
+            feedback.style.display = "block";
+            document.getElementById('managerPasswordInput').select();
+        }
+    }
+
+    function setupFormAndSelectors() {
+        const select = document.getElementById('workerSelect');
+        const auditSelect = document.getElementById('auditWorkerSelect');
+        const overrideWorker = document.getElementById('overrideWorker');
+        
+        WORKERS.forEach(worker => {
+            select.appendChild(new Option(worker, worker));
+            auditSelect.appendChild(new Option(worker, worker));
+            overrideWorker.appendChild(new Option(worker, worker));
+        });
+
+        const daySelect = document.getElementById('overrideDay');
+        DAYS.forEach(day => daySelect.appendChild(new Option(day, day)));
+
+        const hourSelect = document.getElementById('overrideHour');
+        HOURS.forEach((hour, idx) => hourSelect.appendChild(new Option(HOUR_LABELS[idx], hour)));
+
+        const tbody = document.getElementById('formTableBody');
+        HOURS.forEach((hour, hIndex) => {
+            let row = document.createElement('tr');
+            let timeTd = document.createElement('td');
+            timeTd.innerHTML = `<strong>${HOUR_LABELS[hIndex]}</strong>`;
+            row.appendChild(timeTd);
+
+            DAYS.forEach(day => {
+                let td = document.createElement('td');
+                td.style.textAlign = 'center';
+                td.innerHTML = `
+                    <label class="checkbox-label">
+                        <input type="checkbox" data-day="${day}" data-hour="${hour}"> Available
+                    </label>
+                `;
+                row.appendChild(td);
+            });
+            tbody.appendChild(row);
+        });
+    }
+
+    function loadWorkerAvailability() {
+        const currentWorker = document.getElementById('workerSelect').value;
+        
+        const checkboxes = document.querySelectorAll('#formTableBody input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+            cb.checked = availabilityData[currentWorker][cb.getAttribute('data-day')][cb.getAttribute('data-hour')] || false;
+        });
+
+        document.getElementById('workerGlobalNote').value = globalNotesData[currentWorker] || "";
+        renderPersonalDashboard(currentWorker);
+    }
+
+    function renderPersonalDashboard(workerName) {
+        document.getElementById('dashWorkerName').textContent = `${workerName}'s Shift Roster`;
+        const countBadge = document.getElementById('dashTotalShifts');
+        const listContainer = document.getElementById('dashShiftList');
+        
+        listContainer.innerHTML = '';
+        
+        const shifts = individualWorkerSchedules[workerName] || [];
+        countBadge.textContent = `${shifts.length} Shift${shifts.length === 1 ? '' : 's'} Assigned`;
+        
+        if (shifts.length === 0) {
+            listContainer.innerHTML = `<li style="color: var(--time-color); justify-content: center; font-style: italic;">No desk shifts assigned this week.</li>`;
+            return;
+        }
+
+        shifts.forEach(shift => {
+            let li = document.createElement('li');
+            li.innerHTML = `
+                <div><strong>${shift.day}</strong> at ${shift.timeLabel}</div>
+                ${shift.isExtra ? '<span class="extra-tag">Extra Help</span>' : ''}
+            `;
+            listContainer.appendChild(li);
+        });
+    }
+
+    function saveAvailability() {
+        const currentWorker = document.getElementById('workerSelect').value;
+        
+        const checkboxes = document.querySelectorAll('#formTableBody input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+            availabilityData[currentWorker][cb.getAttribute('data-day')][cb.getAttribute('data-hour')] = cb.checked;
+        });
+
+        globalNotesData[currentWorker] = document.getElementById('workerGlobalNote').value;
+
+        generateSchedule();
+        renderPersonalDashboard(currentWorker);
+        alert(`Availability configuration and general notes saved successfully!`);
+    }
+
+    function generateSchedule() {
+        const grid = document.getElementById('calendarGrid');
+        if(grid) grid.innerHTML = ''; 
+
+        emptySlotsTracker = [];
+        WORKERS.forEach(w => {
+            finalCalculatedWorkloads[w] = 0;
+            individualWorkerSchedules[w] = []; 
+        });
+
+        if(grid) {
+            let corner = document.createElement('div');
+            corner.className = 'grid-header';
+            grid.appendChild(corner);
+            DAYS.forEach(day => {
+                let th = document.createElement('div');
+                th.className = 'grid-header';
+                th.textContent = day;
+                grid.appendChild(th);
+            });
+        }
+
+        HOURS.forEach((hour, hIndex) => {
+            if(grid) {
+                let labelDiv = document.createElement('div');
+                labelDiv.className = 'time-slot';
+                labelDiv.style.gridRowStart = hIndex + 2;
+                labelDiv.textContent = HOUR_LABELS[hIndex];
+                grid.appendChild(labelDiv);
+            }
+
+            DAYS.forEach((day, dIndex) => {
+                let cellDiv = document.createElement('div');
+                cellDiv.className = 'day-slot';
+                cellDiv.style.gridRowStart = hIndex + 2;
+                cellDiv.style.gridColumnStart = dIndex + 2;
+
+                let availableStaff = WORKERS.filter(worker => availabilityData[worker][day][hour] === true);
+                availableStaff.sort((a, b) => finalCalculatedWorkloads[a] - finalCalculatedWorkloads[b]);
+
+                let assigned = availableStaff.slice(0, 2);
+                let systemOverrides = overrideData[day][hour];
+
+                // Standard Positions
+                for (let i = 0; i < 2; i++) {
+                    let pill = document.createElement('div');
+                    
+                    if (systemOverrides[i] !== null) {
+                        if(systemOverrides[i] !== "LEAVE_EMPTY") {
+                            pill.className = 'worker-pill override';
+                            pill.textContent = systemOverrides[i];
+                            
+                            finalCalculatedWorkloads[systemOverrides[i]]++;
+                            individualWorkerSchedules[systemOverrides[i]].push({
+                                day: day,
+                                timeLabel: HOUR_LABELS[hIndex],
+                                isExtra: false
+                            });
+                        } else {
+                            pill.className = 'worker-pill empty';
+                            pill.textContent = 'Forced Empty';
+                            emptySlotsTracker.push({ day, hourLabel: HOUR_LABELS[hIndex], slotIndex: i + 1 });
+                        }
+                    } else if (assigned[i]) {
+                        pill.className = 'worker-pill';
+                        pill.textContent = assigned[i];
+                        
+                        finalCalculatedWorkloads[assigned[i]]++;
+                        individualWorkerSchedules[assigned[i]].push({
+                            day: day,
+                            timeLabel: HOUR_LABELS[hIndex],
+                            isExtra: false
+                        });
+                    } else {
+                        pill.className = 'worker-pill empty';
+                        pill.textContent = 'Unstaffed Slot';
+                        emptySlotsTracker.push({ day, hourLabel: HOUR_LABELS[hIndex], slotIndex: i + 1 });
+                    }
+                    cellDiv.appendChild(pill);
+                }
+
+                // Slot 3 Dynamic Evaluation 
+                if (systemOverrides[2] !== null && systemOverrides[2] !== "LEAVE_EMPTY") {
+                    let extraPill = document.createElement('div');
+                    extraPill.className = 'worker-pill extra-help';
+                    extraPill.textContent = systemOverrides[2];
+                    
+                    finalCalculatedWorkloads[systemOverrides[2]]++;
+                    individualWorkerSchedules[systemOverrides[2]].push({
+                        day: day,
+                        timeLabel: HOUR_LABELS[hIndex],
+                        isExtra: true
+                    });
+                    cellDiv.appendChild(extraPill);
+                }
+
+                if(grid) grid.appendChild(cellDiv);
+            });
+        });
+    }
+
+    function renderCoverageAlerts() {
+        const alertPanel = document.getElementById('coverageAlertPanel');
+        if(!alertPanel) return;
+        
+        if (emptySlotsTracker.length === 0) {
+            alertPanel.className = "alert-panel success";
+            alertPanel.innerHTML = `<strong>✓ Baseline Coverage Complete:</strong> All core shift pairings (2 workers per hour) are fully staffed.`;
+        } else {
+            alertPanel.className = "alert-panel danger";
+            
+            let htmlContent = `
+                <strong>⚠ Open Shift Positions Alert:</strong> Found <strong>${emptySlotsTracker.length}</strong> unfilled core baseline positions:
+                <ul class="alert-list">
+            `;
+            emptySlotsTracker.forEach(item => {
+                htmlContent += `<li><strong>${item.day}</strong> at <strong>${item.hourLabel}</strong> (Core Position ${item.slotIndex}) is missing staff.</li>`;
+            });
+            htmlContent += `</ul>`;
+            alertPanel.innerHTML = htmlContent;
+        }
+    }
+
+    function renderStatsTable() {
+        const tbody = document.getElementById('statsTableBody');
+        if(!tbody) return;
+        tbody.innerHTML = '';
+        Object.keys(finalCalculatedWorkloads).forEach(worker => {
+            let row = document.createElement('tr');
+            row.innerHTML = `<td><strong>${worker}</strong></td><td>${finalCalculatedWorkloads[worker]} shifts assigned</td>`;
+            tbody.appendChild(row);
+        });
+    }
+
+    function renderAuditMatrix() {
+        const selectedWorker = document.getElementById('auditWorkerSelect').value;
+        const noteBox = document.getElementById('auditNotesDisplay');
+        const tbody = document.getElementById('auditTableBody');
+        
+        if(!tbody) return;
+        tbody.innerHTML = '';
+
+        const activeNoteStr = globalNotesData[selectedWorker] || "";
+        noteBox.textContent = activeNoteStr.trim() !== "" ? activeNoteStr : "No notes submitted by this worker.";
+
+        HOURS.forEach((hour, idx) => {
+            let row = document.createElement('tr');
+            let timeTd = document.createElement('td');
+            timeTd.innerHTML = `<strong>${HOUR_LABELS[idx]}</strong>`;
+            row.appendChild(timeTd);
+
+            DAYS.forEach(day => {
+                let td = document.createElement('td');
+                let isAvailable = availabilityData[selectedWorker][day][hour];
+                
+                td.style.textAlign = 'center';
+                td.innerHTML = `
+                    <span class="status-dot ${isAvailable ? 'available' : 'unavailable'}"></span> 
+                    <span style="font-size:0.75rem; display:block; color:var(--time-color);">${isAvailable?'Free':'Busy'}</span>
+                `;
+                row.appendChild(td);
+            });
+            tbody.appendChild(row);
+        });
+    }
+
+    function applyOverride() {
+        const day = document.getElementById('overrideDay').value;
+        const hour = document.getElementById('overrideHour').value;
+        const slotIdx = parseInt(document.getElementById('overrideSlot').value);
+        const worker = document.getElementById('overrideWorker').value;
+
+        if(worker === "") {
+            alert("Please choose a worker or select [FORCE LEAVE SLOT UNSTAFFED].");
+            return;
+        }
+
+        overrideData[day][hour][slotIdx] = worker;
+        
+        generateSchedule();
+        renderStatsTable();
+        renderAuditMatrix();
+        renderCoverageAlerts();
+        alert(`Override rule processed.`);
+    }
+
+    function clearOverride() {
+        const day = document.getElementById('overrideDay').value;
+        const hour = document.getElementById('overrideHour').value;
+        const slotIdx = parseInt(document.getElementById('overrideSlot').value);
+
+        overrideData[day][hour][slotIdx] = null;
+        
+        generateSchedule();
+        renderStatsTable();
+        renderAuditMatrix();
+        renderCoverageAlerts();
+        alert(`Override removed.`);
+    }
+
+    // Initialize System Boot sequence
+    initData();
+    generateSchedule(); 
+    setupFormAndSelectors();
+    loadWorkerAvailability();
+</script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"642255d447fd46dbbcd67f3ff9dbdf59","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
