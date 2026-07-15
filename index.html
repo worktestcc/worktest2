@@ -273,12 +273,7 @@
                         <tbody id="statsTableBody"></tbody>
                     </table>
                 </div>
-<h3>Rename Workers</h3>
-<div style="background: var(--header-bg); padding:15px; border-radius:6px; border: 1px solid var(--border-color);">
-    <select id="renameWorkerSelect" style="width:100%; margin-bottom:10px;"></select>
-    <input type="text" id="newWorkerName" placeholder="Enter new name..." style="width:100%; box-sizing:border-box; margin-bottom:10px;">
-    <button class="btn btn-primary" onclick="renameWorker()">Update Name</button>
-</div>
+
                 <h3>Manual Scheduling Overrides</h3>
                 <div style="background: var(--header-bg); padding:15px; border-radius:6px; border: 1px solid var(--border-color); display:flex; flex-direction:column; gap:10px;">
                     <div><label>Day</label><select id="overrideDay" style="width:100%;"></select></div>
@@ -333,7 +328,6 @@
 </div>
 
 <script>
-let workerNames = {}; // Store custom names here
     // --- SUPABASE CONFIGURATION ---
     // REPLACE THESE WITH YOUR ACTUAL SUPABASE URL AND ANON KEY
     const SUPABASE_URL = 'https://gtexbtwfbdsddznilujo.supabase.co'; 
@@ -421,28 +415,7 @@ let workerNames = {}; // Store custom names here
         generateSchedule(); 
         setupFormAndSelectors();
         loadWorkerAvailability();
-     async function bootDatabaseSync() {
-    // 1. Set hardcoded defaults first
-    createEmptyDataStructure();
-    WORKERS.forEach(w => workerNames[w] = w); 
-
-    try {
-        const { data, error } = await supabaseClient
-            .from('app_state')
-            .select('*')
-            .eq('id', 1)
-            .single();
-
-        if (data) {
-            if (data.availability) Object.assign(availabilityData, data.availability);
-            if (data.notes) Object.assign(globalNotesData, data.notes);
-            if (data.overrides) Object.assign(overrideData, data.overrides);
-            
-            // LOAD SAVED NAMES FROM DB
-            if (data.worker_names) {
-                workerNames = data.worker_names;
-            }
-        }
+    }
 
     // Push Availability updates to Supabase
     async function saveAvailability() {
@@ -531,13 +504,11 @@ let workerNames = {}; // Store custom names here
     const auditSelect = document.getElementById('auditWorkerSelect');
     const overrideWorker = document.getElementById('overrideWorker');
     
-    WORKERS.forEach(w => {
-    const displayName = workerNames[w] || w; // Use custom name or default
-    select.appendChild(new Option(displayName, w)); // Value is ID (e.g., "Worker 1"), Text is Name
-    auditSelect.appendChild(new Option(displayName, w));
-    overrideWorker.appendChild(new Option(displayName, w));
-    renameWorkerSelect.appendChild(new Option(displayName, w));
-});
+    WORKERS.forEach(worker => {
+        select.appendChild(new Option(worker, worker));
+        auditSelect.appendChild(new Option(worker, worker));
+        overrideWorker.appendChild(new Option(worker, worker));
+    });
 
     const daySelect = document.getElementById('overrideDay');
     DAYS.forEach(day => daySelect.appendChild(new Option(day, day)));
@@ -778,28 +749,7 @@ let workerNames = {}; // Store custom names here
     
     document.getElementById('calendar-heading').textContent = `Weekly Schedule: ${dateString}`;
 }
-async function renameWorker() {
-    const originalName = document.getElementById('renameWorkerSelect').value;
-    const newName = document.getElementById('newWorkerName').value;
 
-    if (!newName) return alert("Please enter a name.");
-
-    // Update the local state
-    workerNames[originalName] = newName;
-
-    // Push to Supabase and WAIT for confirmation
-    const { error } = await supabaseClient
-        .from('app_state')
-        .update({ worker_names: workerNames })
-        .eq('id', 1);
-
-    if (error) {
-        alert("Database error: " + error.message);
-    } else {
-        alert("Name saved successfully! Refreshing...");
-        location.reload(); 
-    }
-}
 // Call this function when the page finishes loading
 document.addEventListener("DOMContentLoaded", () => {
     updateHeadingDate();
