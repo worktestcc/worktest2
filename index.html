@@ -421,13 +421,28 @@ let workerNames = {}; // Store custom names here
         generateSchedule(); 
         setupFormAndSelectors();
         loadWorkerAvailability();
-        if (data.worker_names) {
-    workerNames = data.worker_names;
-} else {
-    // Default names if none exist
-    WORKERS.forEach(w => workerNames[w] = w);
-}
-    }
+     async function bootDatabaseSync() {
+    // 1. Set hardcoded defaults first
+    createEmptyDataStructure();
+    WORKERS.forEach(w => workerNames[w] = w); 
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('app_state')
+            .select('*')
+            .eq('id', 1)
+            .single();
+
+        if (data) {
+            if (data.availability) Object.assign(availabilityData, data.availability);
+            if (data.notes) Object.assign(globalNotesData, data.notes);
+            if (data.overrides) Object.assign(overrideData, data.overrides);
+            
+            // LOAD SAVED NAMES FROM DB
+            if (data.worker_names) {
+                workerNames = data.worker_names;
+            }
+        }
 
     // Push Availability updates to Supabase
     async function saveAvailability() {
@@ -769,16 +784,21 @@ async function renameWorker() {
 
     if (!newName) return alert("Please enter a name.");
 
+    // Update the local state
     workerNames[originalName] = newName;
 
-    // Push to Supabase
-    await supabaseClient
+    // Push to Supabase and WAIT for confirmation
+    const { error } = await supabaseClient
         .from('app_state')
         .update({ worker_names: workerNames })
         .eq('id', 1);
 
-    alert("Worker renamed! Refreshing UI...");
-    location.reload(); // Simplest way to refresh all dropdowns and labels
+    if (error) {
+        alert("Database error: " + error.message);
+    } else {
+        alert("Name saved successfully! Refreshing...");
+        location.reload(); 
+    }
 }
 // Call this function when the page finishes loading
 document.addEventListener("DOMContentLoaded", () => {
