@@ -591,104 +591,110 @@ let workerNames = {}; // Store custom names here
     }
 
     function renderPersonalDashboard(workerName) {
-        document.getElementById('dashWorkerName').textContent = `${workerName}'s Shift Roster`;
-        const countBadge = document.getElementById('dashTotalShifts');
-        const listContainer = document.getElementById('dashShiftList');
-        listContainer.innerHTML = '';
-        
-        const shifts = individualWorkerSchedules[workerName] || [];
-        countBadge.textContent = `${shifts.length} Shift${shifts.length === 1 ? '' : 's'} Assigned`;
-        
-        if (shifts.length === 0) {
-            listContainer.innerHTML = `<li style="color: var(--time-color); justify-content: center; font-style: italic;">No desk shifts assigned this week.</li>`;
-            return;
-        }
-        shifts.forEach(shift => {
-            let li = document.createElement('li');
-            li.innerHTML = `<div><strong>${shift.day}</strong> at ${shift.timeLabel}</div> ${shift.isExtra ? '<span class="extra-tag">Extra Help</span>' : ''}`;
-            listContainer.appendChild(li);
-        });
+    // UPDATED: Use the custom name for the header, fallback to workerName ID
+    const displayName = workerNames[workerName] || workerName;
+    document.getElementById('dashWorkerName').textContent = `${displayName}'s Shift Roster`;
+    
+    const countBadge = document.getElementById('dashTotalShifts');
+    const listContainer = document.getElementById('dashShiftList');
+    listContainer.innerHTML = '';
+    
+    const shifts = individualWorkerSchedules[workerName] || [];
+    countBadge.textContent = `${shifts.length} Shift${shifts.length === 1 ? '' : 's'} Assigned`;
+    
+    if (shifts.length === 0) {
+        listContainer.innerHTML = `<li style="color: var(--time-color); justify-content: center; font-style: italic;">No desk shifts assigned this week.</li>`;
+        return;
+    }
+    shifts.forEach(shift => {
+        let li = document.createElement('li');
+        li.innerHTML = `<div><strong>${shift.day}</strong> at ${shift.timeLabel}</div> ${shift.isExtra ? '<span class="extra-tag">Extra Help</span>' : ''}`;
+        listContainer.appendChild(li);
+    });
+}
+
+   function generateSchedule() {
+    const grid = document.getElementById('calendarGrid');
+    if(grid) grid.innerHTML = ''; 
+    emptySlotsTracker = [];
+    WORKERS.forEach(w => { finalCalculatedWorkloads[w] = 0; individualWorkerSchedules[w] = []; });
+
+    if(grid) {
+        let corner = document.createElement('div');
+        corner.className = 'grid-header'; grid.appendChild(corner);
+        DAYS.forEach(day => { let th = document.createElement('div'); th.className = 'grid-header'; th.textContent = day; grid.appendChild(th); });
     }
 
-    function generateSchedule() {
-        const grid = document.getElementById('calendarGrid');
-        if(grid) grid.innerHTML = ''; 
-        emptySlotsTracker = [];
-        WORKERS.forEach(w => { finalCalculatedWorkloads[w] = 0; individualWorkerSchedules[w] = []; });
-
+    HOURS.forEach((hour, hIndex) => {
         if(grid) {
-            let corner = document.createElement('div');
-            corner.className = 'grid-header'; grid.appendChild(corner);
-            DAYS.forEach(day => { let th = document.createElement('div'); th.className = 'grid-header'; th.textContent = day; grid.appendChild(th); });
+            let labelDiv = document.createElement('div');
+            labelDiv.className = 'time-slot'; labelDiv.style.gridRowStart = hIndex + 2; labelDiv.textContent = HOUR_LABELS[hIndex];
+            grid.appendChild(labelDiv);
         }
+        DAYS.forEach((day, dIndex) => {
+            let hourVal = parseInt(hour);
+            if (hour.includes('pm') && hourVal !== 12) hourVal += 12;
 
-        HOURS.forEach((hour, hIndex) => {
-            if(grid) {
-                let labelDiv = document.createElement('div');
-                labelDiv.className = 'time-slot'; labelDiv.style.gridRowStart = hIndex + 2; labelDiv.textContent = HOUR_LABELS[hIndex];
-                grid.appendChild(labelDiv);
+            const isFriday = (day === 'Friday');
+            if (isFriday && (hourVal < 10 || hourVal >= 17)) {
+                let disabledDiv = document.createElement('div');
+                disabledDiv.className = 'slot-disabled';
+                disabledDiv.style.gridRowStart = hIndex + 2;
+                disabledDiv.style.gridColumnStart = dIndex + 2;
+                if(grid) grid.appendChild(disabledDiv);
+                return;
             }
-            DAYS.forEach((day, dIndex) => {
-    // 1. Calculate hour logic
-    let hourVal = parseInt(hour);
-    if (hour.includes('pm') && hourVal !== 12) hourVal += 12;
 
-    // 2. Check if this is a restricted Friday slot
-    const isFriday = (day === 'Friday');
-    // Disabled if Friday AND (before 10am OR 5pm or later)
-    if (isFriday && (hourVal < 10 || hourVal >= 17)) {
-        let disabledDiv = document.createElement('div');
-        disabledDiv.className = 'slot-disabled';
-        disabledDiv.style.gridRowStart = hIndex + 2;
-        disabledDiv.style.gridColumnStart = dIndex + 2;
-        if(grid) grid.appendChild(disabledDiv);
-        return; // This skips the rest of the logic for this cell
-    }
+            let cellDiv = document.createElement('div');
+            cellDiv.className = 'day-slot'; 
+            cellDiv.style.gridRowStart = hIndex + 2; 
+            cellDiv.style.gridColumnStart = dIndex + 2;
 
-    // 3. Normal schedule rendering logic
-    let cellDiv = document.createElement('div');
-    cellDiv.className = 'day-slot'; 
-    cellDiv.style.gridRowStart = hIndex + 2; 
-    cellDiv.style.gridColumnStart = dIndex + 2;
+            let availableStaff = WORKERS.filter(worker => availabilityData[worker]?.[day]?.[hour] === true);
+            availableStaff.sort((a, b) => finalCalculatedWorkloads[a] - finalCalculatedWorkloads[b]);
 
-    let availableStaff = WORKERS.filter(worker => availabilityData[worker]?.[day]?.[hour] === true);
-    availableStaff.sort((a, b) => finalCalculatedWorkloads[a] - finalCalculatedWorkloads[b]);
+            let assigned = availableStaff.slice(0, 2);
+            let systemOverrides = overrideData[day]?.[hour] || [null, null, null];
 
-    let assigned = availableStaff.slice(0, 2);
-    let systemOverrides = overrideData[day]?.[hour] || [null, null, null];
-
-    for (let i = 0; i < 2; i++) {
-        let pill = document.createElement('div');
-        if (systemOverrides[i] !== null) {
-            if(systemOverrides[i] !== "LEAVE_EMPTY") {
-                pill.className = 'worker-pill override'; pill.textContent = systemOverrides[i];
-                finalCalculatedWorkloads[systemOverrides[i]]++;
-                individualWorkerSchedules[systemOverrides[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: false });
-            } else {
-                pill.className = 'worker-pill empty'; pill.textContent = 'Forced Empty';
-                emptySlotsTracker.push({ day, hourLabel: HOUR_LABELS[hIndex], slotIndex: i + 1 });
+            for (let i = 0; i < 2; i++) {
+                let pill = document.createElement('div');
+                if (systemOverrides[i] !== null) {
+                    if(systemOverrides[i] !== "LEAVE_EMPTY") {
+                        pill.className = 'worker-pill override'; 
+                        // UPDATED: Use custom name lookup
+                        pill.textContent = workerNames[systemOverrides[i]] || systemOverrides[i]; 
+                        finalCalculatedWorkloads[systemOverrides[i]]++;
+                        individualWorkerSchedules[systemOverrides[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: false });
+                    } else {
+                        pill.className = 'worker-pill empty'; pill.textContent = 'Forced Empty';
+                        emptySlotsTracker.push({ day, hourLabel: HOUR_LABELS[hIndex], slotIndex: i + 1 });
+                    }
+                } else if (assigned[i]) {
+                    pill.className = 'worker-pill'; 
+                    // UPDATED: Use custom name lookup
+                    pill.textContent = workerNames[assigned[i]] || assigned[i]; 
+                    finalCalculatedWorkloads[assigned[i]]++;
+                    individualWorkerSchedules[assigned[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: false });
+                } else {
+                    pill.className = 'worker-pill empty'; pill.textContent = 'Unstaffed Slot';
+                    emptySlotsTracker.push({ day, hourLabel: HOUR_LABELS[hIndex], slotIndex: i + 1 });
+                }
+                cellDiv.appendChild(pill);
             }
-        } else if (assigned[i]) {
-            pill.className = 'worker-pill'; pill.textContent = assigned[i];
-            finalCalculatedWorkloads[assigned[i]]++;
-            individualWorkerSchedules[assigned[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: false });
-        } else {
-            pill.className = 'worker-pill empty'; pill.textContent = 'Unstaffed Slot';
-            emptySlotsTracker.push({ day, hourLabel: HOUR_LABELS[hIndex], slotIndex: i + 1 });
-        }
-        cellDiv.appendChild(pill);
-    }
 
-    if (systemOverrides[2] !== null && systemOverrides[2] !== "LEAVE_EMPTY") {
-        let extraPill = document.createElement('div'); extraPill.className = 'worker-pill extra-help'; extraPill.textContent = systemOverrides[2];
-        finalCalculatedWorkloads[systemOverrides[2]]++;
-        individualWorkerSchedules[systemOverrides[2]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: true });
-        cellDiv.appendChild(extraPill);
-    }
-    if(grid) grid.appendChild(cellDiv);
-});
+            if (systemOverrides[2] !== null && systemOverrides[2] !== "LEAVE_EMPTY") {
+                let extraPill = document.createElement('div'); 
+                extraPill.className = 'worker-pill extra-help'; 
+                // UPDATED: Use custom name lookup
+                extraPill.textContent = workerNames[systemOverrides[2]] || systemOverrides[2];
+                finalCalculatedWorkloads[systemOverrides[2]]++;
+                individualWorkerSchedules[systemOverrides[2]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: true });
+                cellDiv.appendChild(extraPill);
+            }
+            if(grid) grid.appendChild(cellDiv);
         });
-    }
+    });
+}
 
     function renderCoverageAlerts() {
         const alertPanel = document.getElementById('coverageAlertPanel');
@@ -704,13 +710,20 @@ let workerNames = {}; // Store custom names here
     }
 
     function renderStatsTable() {
-        const tbody = document.getElementById('statsTableBody');
-        if(!tbody) return; tbody.innerHTML = '';
-        Object.keys(finalCalculatedWorkloads).forEach(worker => {
-            let row = document.createElement('tr'); row.innerHTML = `<td><strong>${worker}</strong></td><td>${finalCalculatedWorkloads[worker]} shifts assigned</td>`;
-            tbody.appendChild(row);
-        });
-    }
+    const tbody = document.getElementById('statsTableBody');
+    if(!tbody) return; 
+    tbody.innerHTML = '';
+    
+    Object.keys(finalCalculatedWorkloads).forEach(worker => {
+        // UPDATED: Look up the custom name, fallback to ID if none
+        const displayName = workerNames[worker] || worker;
+        
+        let row = document.createElement('tr'); 
+        // UPDATED: Display displayName instead of worker
+        row.innerHTML = `<td><strong>${displayName}</strong></td><td>${finalCalculatedWorkloads[worker]} shifts assigned</td>`;
+        tbody.appendChild(row);
+    });
+}
 
     function renderAuditMatrix() {
         const selectedWorker = document.getElementById('auditWorkerSelect').value;
@@ -804,7 +817,9 @@ async function renameWorker() {
     alert("Worker renamed! Refreshing UI...");
     location.reload(); // Simplest way to refresh all dropdowns and labels
 }
-   
+   function getName(workerId) {
+    return workerNames[workerId] || workerId;
+}
 </script>
 </body>
 </html>
