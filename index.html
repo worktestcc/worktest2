@@ -650,8 +650,32 @@ let workerNames = {}; // Store custom names here
             cellDiv.style.gridRowStart = hIndex + 2; 
             cellDiv.style.gridColumnStart = dIndex + 2;
 
-            let availableStaff = WORKERS.filter(worker => availabilityData[worker]?.[day]?.[hour] === true);
-            availableStaff.sort((a, b) => finalCalculatedWorkloads[a] - finalCalculatedWorkloads[b]);
+            let availableStaff = WORKERS.filter(worker => {
+    // 1. Availability check
+    if (availabilityData[worker]?.[day]?.[hour] !== true) return false;
+
+    // 2. Max 3 shifts per day
+    const shiftsToday = individualWorkerSchedules[worker].filter(s => s.day === day).length;
+    if (shiftsToday >= 3) return false;
+
+    // 3. Max 2 back-to-back (Look back at the previous 2 hours)
+    if (hIndex > 0) {
+        // Did they work the hour immediately before this one?
+        const workedPrevHour = individualWorkerSchedules[worker].some(s => 
+            s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 1]
+        );
+        
+        // Did they work the hour before that?
+        const workedTwoHoursAgo = (hIndex > 1) && individualWorkerSchedules[worker].some(s => 
+            s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 2]
+        );
+
+        // If they worked both the previous two hours, they are blocked
+        if (workedPrevHour && workedTwoHoursAgo) return false;
+    }
+
+    return true;
+});
 
             let assigned = availableStaff.slice(0, 2);
             let systemOverrides = overrideData[day]?.[hour] || [null, null, null];
