@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Desk Staffing Coordinator Pro (Cloud Connected)</title>
+    <title>Desk Schedule</title>
     
     <!-- Supabase JS Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -117,8 +117,10 @@
 
         /* Calendar Grid */
         .calendar-grid {
-            display: grid; grid-template-columns: 90px repeat(5, minmax(170px, 1fr));
-            grid-template-rows: 40px repeat(10, auto); border: 1px solid var(--border-color);
+            display: grid; 
+            grid-template-columns: 90px repeat(6, minmax(170px, 1fr));
+            grid-template-rows: 40px repeat(10, auto); 
+            border: 1px solid var(--border-color);
             border-radius: 8px; overflow: hidden;
         }
         .grid-header {
@@ -402,7 +404,7 @@
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const MANAGER_SECRET_KEY = "admin123";
 
-    const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const HOURS = ['9am', '10am', '11am', '12pm', '1pm', '2pm', '3pm', '4pm', '5pm', '6pm'];
     const HOUR_LABELS = ['9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM', '6:00 PM'];
     
@@ -777,10 +779,10 @@
         const weekDates = getWeekDates();
         
         const formTableHead = document.querySelector('#formTableBody')?.parentElement.querySelector('thead tr');
-        if (formTableHead) formTableHead.innerHTML = `<th>Time Slot</th>` + DAYS.map(day => `<th>${weekDates[day]}</th>`).join('');
-
-        const auditTableHead = document.querySelector('#auditTableBody')?.parentElement.querySelector('thead tr');
-        if (auditTableHead) auditTableHead.innerHTML = `<th>Time Slot</th>` + DAYS.map(day => `<th>${weekDates[day]}</th>`).join('');
+        if (formTableHead) {
+            const daysToShow = DAYS.filter(d => d !== 'Saturday');
+            formTableHead.innerHTML = `<th>Time Slot</th>` + daysToShow.map(day => `<th>${getWeekDates()[day]}</th>`).join('');
+        }
 
         const tbody = document.getElementById('formTableBody');
         if(tbody) {
@@ -795,6 +797,7 @@
                 if (hour.includes('pm') && hourVal !== 12) hourVal += 12;
 
                 DAYS.forEach(day => {
+                    if (day === 'Saturday') return;
                     const isFriday = (day === 'Friday');
                     const isDisabled = (isFriday && (hourVal < 10 || hourVal >= 17));
 
@@ -846,114 +849,114 @@
     }
 
     function generateSchedule() {
-        const grid = document.getElementById('calendarGrid');
-        if(grid) grid.innerHTML = ''; 
-        emptySlotsTracker = [];
-        
-        // ADD THESE TWO LINES TO WIPE GHOST DATA:
-        finalCalculatedWorkloads = {};
-        individualWorkerSchedules = {};
+    const grid = document.getElementById('calendarGrid');
+    if(grid) grid.innerHTML = ''; 
+    emptySlotsTracker = [];
+    
+    finalCalculatedWorkloads = {};
+    individualWorkerSchedules = {};
 
-        activeWorkers.forEach(w => { finalCalculatedWorkloads[w] = 0; individualWorkerSchedules[w] = []; });
+    activeWorkers.forEach(w => { finalCalculatedWorkloads[w] = 0; individualWorkerSchedules[w] = []; });
 
-        const weekDates = getWeekDates();
+    const weekDates = getWeekDates();
 
-        if(grid) {
-            let corner = document.createElement('div');
-            corner.className = 'grid-header'; grid.appendChild(corner);
-            DAYS.forEach(day => { 
-                let th = document.createElement('div'); 
-                th.className = 'grid-header'; 
-                th.textContent = weekDates[day]; 
-                grid.appendChild(th); 
-            });
-        }
-
-        HOURS.forEach((hour, hIndex) => {
-            if(grid) {
-                let labelDiv = document.createElement('div');
-                labelDiv.className = 'time-slot'; labelDiv.style.gridRowStart = hIndex + 2; labelDiv.textContent = HOUR_LABELS[hIndex];
-                grid.appendChild(labelDiv);
-            }
-            DAYS.forEach((day, dIndex) => {
-                let hourVal = parseInt(hour);
-                if (hour.includes('pm') && hourVal !== 12) hourVal += 12;
-
-                const isFriday = (day === 'Friday');
-                if (isFriday && (hourVal < 10 || hourVal >= 17)) {
-                    let disabledDiv = document.createElement('div');
-                    disabledDiv.className = 'slot-disabled';
-                    disabledDiv.style.gridRowStart = hIndex + 2;
-                    disabledDiv.style.gridColumnStart = dIndex + 2;
-                    if(grid) grid.appendChild(disabledDiv);
-                    return;
-                }
-
-                let cellDiv = document.createElement('div');
-                cellDiv.className = 'day-slot'; 
-                cellDiv.style.gridRowStart = hIndex + 2; 
-                cellDiv.style.gridColumnStart = dIndex + 2;
-
-                let availableStaff = activeWorkers.filter(worker => {
-                    // NEW: OOO Check
-                    if (isWorkerOnVacation(worker, day)) return false;
-
-                    if (availabilityData[worker]?.[day]?.[hour] !== true) return false;
-
-                    const shiftsToday = individualWorkerSchedules[worker].filter(s => s.day === day).length;
-                    if (shiftsToday >= 3) return false;
-
-                    if (hIndex > 0) {
-                        const workedPrevHour = individualWorkerSchedules[worker].some(s => 
-                            s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 1]
-                        );
-                        const workedTwoHoursAgo = (hIndex > 1) && individualWorkerSchedules[worker].some(s => 
-                            s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 2]
-                        );
-                        if (workedPrevHour && workedTwoHoursAgo) return false;
-                    }
-                    return true;
-                });
-
-                let assigned = availableStaff.slice(0, 2);
-                let systemOverrides = overrideData[day]?.[hour] || [null, null, null];
-
-                for (let i = 0; i < 2; i++) {
-                    let pill = document.createElement('div');
-                    if (systemOverrides[i] !== null && activeWorkers.includes(systemOverrides[i]) || systemOverrides[i] === "LEAVE_EMPTY") {
-                        if(systemOverrides[i] !== "LEAVE_EMPTY") {
-                            pill.className = 'worker-pill override'; 
-                            pill.textContent = workerNames[systemOverrides[i]] || systemOverrides[i]; 
-                            finalCalculatedWorkloads[systemOverrides[i]]++;
-                            individualWorkerSchedules[systemOverrides[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: false });
-                        } else {
-                            pill.className = 'worker-pill empty'; pill.textContent = 'Forced Empty';
-                            emptySlotsTracker.push({ day, hourLabel: HOUR_LABELS[hIndex], slotIndex: i + 1 });
-                        }
-                    } else if (assigned[i]) {
-                        pill.className = 'worker-pill'; 
-                        pill.textContent = workerNames[assigned[i]] || assigned[i]; 
-                        finalCalculatedWorkloads[assigned[i]]++;
-                        individualWorkerSchedules[assigned[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: false });
-                    } else {
-                        pill.className = 'worker-pill empty'; pill.textContent = 'Unstaffed Slot';
-                        emptySlotsTracker.push({ day, hourLabel: HOUR_LABELS[hIndex], slotIndex: i + 1 });
-                    }
-                    cellDiv.appendChild(pill);
-                }
-
-                if (systemOverrides[2] !== null && systemOverrides[2] !== "LEAVE_EMPTY" && activeWorkers.includes(systemOverrides[2])) {
-                    let extraPill = document.createElement('div'); 
-                    extraPill.className = 'worker-pill extra-help'; 
-                    extraPill.textContent = workerNames[systemOverrides[2]] || systemOverrides[2];
-                    finalCalculatedWorkloads[systemOverrides[2]]++;
-                    individualWorkerSchedules[systemOverrides[2]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: true });
-                    cellDiv.appendChild(extraPill);
-                }
-                if(grid) grid.appendChild(cellDiv);
-            });
+    if(grid) {
+        let corner = document.createElement('div');
+        corner.className = 'grid-header'; grid.appendChild(corner);
+        DAYS.forEach(day => { 
+            let th = document.createElement('div'); 
+            th.className = 'grid-header'; 
+            th.textContent = weekDates[day]; 
+            grid.appendChild(th); 
         });
     }
+
+    HOURS.forEach((hour, hIndex) => {
+        if(grid) {
+            let labelDiv = document.createElement('div');
+            labelDiv.className = 'time-slot'; labelDiv.style.gridRowStart = hIndex + 2; labelDiv.textContent = HOUR_LABELS[hIndex];
+            grid.appendChild(labelDiv);
+        }
+        DAYS.forEach((day, dIndex) => {
+            let hourVal = parseInt(hour);
+            if (hour.includes('pm') && hourVal !== 12) hourVal += 12;
+
+            // Updated restrictions for Friday and Saturday
+            const isFridayRestricted = (day === 'Friday' && (hourVal < 10 || hourVal >= 17));
+            const isSaturdayRestricted = (day === 'Saturday' && (hourVal < 10 || hourVal >= 14));
+            
+            if (isFridayRestricted || isSaturdayRestricted) {
+                let disabledDiv = document.createElement('div');
+                disabledDiv.className = 'slot-disabled';
+                disabledDiv.style.gridRowStart = hIndex + 2;
+                disabledDiv.style.gridColumnStart = dIndex + 2;
+                if(grid) grid.appendChild(disabledDiv);
+                return;
+            }
+
+            let cellDiv = document.createElement('div');
+            cellDiv.className = 'day-slot'; 
+            cellDiv.style.gridRowStart = hIndex + 2; 
+            cellDiv.style.gridColumnStart = dIndex + 2;
+
+            let availableStaff = activeWorkers.filter(worker => {
+                if (isWorkerOnVacation(worker, day)) return false;
+                if (availabilityData[worker]?.[day]?.[hour] !== true) return false;
+
+                const shiftsToday = individualWorkerSchedules[worker].filter(s => s.day === day).length;
+                if (shiftsToday >= 3) return false;
+
+                if (hIndex > 0) {
+                    const workedPrevHour = individualWorkerSchedules[worker].some(s => 
+                        s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 1]
+                    );
+                    const workedTwoHoursAgo = (hIndex > 1) && individualWorkerSchedules[worker].some(s => 
+                        s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 2]
+                    );
+                    if (workedPrevHour && workedTwoHoursAgo) return false;
+                }
+                return true;
+            });
+
+            let assigned = availableStaff.slice(0, 2);
+            let systemOverrides = overrideData[day]?.[hour] || [null, null, null];
+
+            for (let i = 0; i < 2; i++) {
+                let pill = document.createElement('div');
+                if (systemOverrides[i] !== null && activeWorkers.includes(systemOverrides[i]) || systemOverrides[i] === "LEAVE_EMPTY") {
+                    if(systemOverrides[i] !== "LEAVE_EMPTY") {
+                        pill.className = 'worker-pill override'; 
+                        pill.textContent = workerNames[systemOverrides[i]] || systemOverrides[i]; 
+                        finalCalculatedWorkloads[systemOverrides[i]]++;
+                        individualWorkerSchedules[systemOverrides[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: false });
+                    } else {
+                        pill.className = 'worker-pill empty'; pill.textContent = 'Forced Empty';
+                        emptySlotsTracker.push({ day, hourLabel: HOUR_LABELS[hIndex], slotIndex: i + 1 });
+                    }
+                } else if (assigned[i]) {
+                    pill.className = 'worker-pill'; 
+                    pill.textContent = workerNames[assigned[i]] || assigned[i]; 
+                    finalCalculatedWorkloads[assigned[i]]++;
+                    individualWorkerSchedules[assigned[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: false });
+                } else {
+                    pill.className = 'worker-pill empty'; pill.textContent = 'Unstaffed Slot';
+                    emptySlotsTracker.push({ day, hourLabel: HOUR_LABELS[hIndex], slotIndex: i + 1 });
+                }
+                cellDiv.appendChild(pill);
+            }
+
+            if (systemOverrides[2] !== null && systemOverrides[2] !== "LEAVE_EMPTY" && activeWorkers.includes(systemOverrides[2])) {
+                let extraPill = document.createElement('div'); 
+                extraPill.className = 'worker-pill extra-help'; 
+                extraPill.textContent = workerNames[systemOverrides[2]] || systemOverrides[2];
+                finalCalculatedWorkloads[systemOverrides[2]]++;
+                individualWorkerSchedules[systemOverrides[2]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: true });
+                cellDiv.appendChild(extraPill);
+            }
+            if(grid) grid.appendChild(cellDiv);
+        });
+    });
+}
 
     function renderCoverageAlerts() {
         const alertPanel = document.getElementById('coverageAlertPanel');
