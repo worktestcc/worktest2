@@ -289,134 +289,177 @@
 
     <div id="manager-tab" class="tab-content">
         <h2>Manager Administration Board</h2>
-        <div id="coverageAlertPanel" class="alert-panel"></div>
         
-        <div class="manager-layout">
-            <div>
-                <h3>Staff Management</h3>
-                <div class="panel-box">
-                    <h4>Add New Worker</h4>
-                    <div class="form-row">
-                        <div><input type="text" id="newHireName" placeholder="Worker Name..."></div>
-                        <button class="btn btn-primary" style="white-space: nowrap;" onclick="addWorker()">Add Worker</button>
+        <!-- Manager Sub-Navigation -->
+        <div class="tabs">
+            <button id="sub-btn-general" class="tab-btn manager-sub-btn active" onclick="switchManagerSubTab('general')">General Operations</button>
+            <button id="sub-btn-saturdays" class="tab-btn manager-sub-btn manager-style" onclick="switchManagerSubTab('saturdays')">Saturday Management</button>
+        </div>
+
+        <!-- General Manager Tab -->
+        <div id="manager-general-content" class="manager-sub-content" style="display: block;">
+            <div id="coverageAlertPanel" class="alert-panel"></div>
+            
+            <div class="manager-layout">
+                <div>
+                    <h3>Staff Management</h3>
+                    <div class="panel-box">
+                        <h4>Add New Worker</h4>
+                        <div class="form-row">
+                            <div><input type="text" id="newHireName" placeholder="Worker Name..."></div>
+                            <button class="btn btn-primary" style="white-space: nowrap;" onclick="addWorker()">Add Worker</button>
+                        </div>
+
+                        <hr class="section-divider">
+
+                        <h4>Rename Existing Worker</h4>
+                        <div class="form-row">
+                            <div><select id="renameWorkerSelect"></select></div>
+                            <div><input type="text" id="newWorkerName" placeholder="Enter new name..."></div>
+                            <button class="btn btn-primary" onclick="renameWorker()">Update</button>
+                        </div>
+
+                        <hr class="section-divider">
+
+                        <h4>Remove Worker</h4>
+                        <div class="form-row">
+                            <div><select id="removeWorkerSelect"></select></div>
+                            <button class="btn btn-danger" style="white-space: nowrap;" onclick="deleteWorker()">Delete Worker</button>
+                        </div>
                     </div>
 
-                    <hr class="section-divider">
+                    <h3>Availability Controls</h3>
+                    <div class="panel-box">
+                        <h4>Reset Weekly Availability</h4>
+                        <p style="font-size: 0.85rem; color: var(--time-color); margin-top:-5px;">Clears all checked checkboxes on a worker's grid.</p>
+                        <div class="form-row">
+                            <div><select id="resetWorkerSelect"></select></div>
+                            <button class="btn btn-warning" onclick="resetAvailability()">Clear Grid</button>
+                        </div>
 
-                    <h4>Rename Existing Worker</h4>
-                    <div class="form-row">
-                        <div><select id="renameWorkerSelect"></select></div>
-                        <div><input type="text" id="newWorkerName" placeholder="Enter new name..."></div>
-                        <button class="btn btn-primary" onclick="renameWorker()">Update</button>
+                        <hr class="section-divider">
+
+                        <h4>Vacation / Out of Office</h4>
+                        <p style="font-size: 0.85rem; color: var(--time-color); margin-top:-5px;">Prevents worker from being scheduled during these dates.</p>
+                        <select id="vacationWorkerSelect" style="width:100%; margin-bottom: 10px;" onchange="updateVacationDisplay()"></select>
+                        
+                        <div class="form-row">
+                            <div><label style="font-size: 0.85rem; font-weight: bold;">Start Date:</label><br><input type="date" id="vacationStart"></div>
+                            <div><label style="font-size: 0.85rem; font-weight: bold;">End Date:</label><br><input type="date" id="vacationEnd"></div>
+                        </div>
+                        
+                        <div style="display:flex; gap:10px; margin-top:5px;">
+                            <button class="btn btn-primary" style="flex:1;" onclick="setVacation()">Set OOO</button>
+                            <button class="btn" style="background-color:#64748b; flex:1;" onclick="clearVacation()">Clear OOO</button>
+                        </div>
+                        <div id="vacationStatus" style="margin-top:12px; font-size:0.9rem; color: #334155;"></div>
                     </div>
 
-                    <hr class="section-divider">
-
-                    <h4>Remove Worker</h4>
-                    <div class="form-row">
-                        <div><select id="removeWorkerSelect"></select></div>
-                        <button class="btn btn-danger" style="white-space: nowrap;" onclick="deleteWorker()">Delete Worker</button>
-                    </div>
-                </div>
-
-                <h3>Saturday Crew Assignment</h3>
-                <div class="panel-box">
-                    <p style="font-size: 0.85rem; color: var(--time-color); margin-top:-5px;">Assign a specific crew for a Saturday. The system will ONLY schedule these workers for that day.</p>
-                    <div class="form-row">
+                    <h3>Manual Scheduling Overrides</h3>
+                    <div class="panel-box" style="display:flex; flex-direction:column; gap:10px;">
+                        <div><label>Day</label><select id="overrideDay" style="width:100%;"></select></div>
+                        <div><label>Hour Block</label><select id="overrideHour" style="width:100%;"></select></div>
                         <div>
-                            <label style="font-size: 0.85rem; font-weight: bold;">Select Saturday:</label><br>
-                            <input type="date" id="crewDateSelect" onchange="loadSaturdayCrew()">
+                            <label>Slot Selection</label>
+                            <select id="overrideSlot" style="width:100%;">
+                                <option value="0">Circ Desk 1</option>
+                                <option value="1">Circ Desk 2</option>
+                                <option value="2">Proactive</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Assign Staff Member</label>
+                            <select id="overrideWorker" style="width:100%;">
+                                <option value="">-- Choose Worker --</option>
+                                <option value="LEAVE_EMPTY">[FORCE LEAVE SLOT UNSTAFFED]</option>
+                            </select>
+                        </div>
+                        <div style="display:flex; gap:10px; margin-top:5px;">
+                            <button class="btn btn-primary" id="applyOverrideBtn" style="flex:1;" onclick="applyOverride()">Apply Override</button>
+                            <button class="btn" id="clearOverrideBtn" style="background-color:#64748b; flex:1;" onclick="clearOverride()">Clear</button>
                         </div>
                     </div>
-                    <div id="crewCheckboxes" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin: 15px 0;">
-                        </div>
-                    <button class="btn btn-primary" onclick="saveSaturdayCrew()">Save Crew</button>
                 </div>
 
-                <h3>Availability Controls</h3>
-                <div class="panel-box">
-                    <h4>Reset Weekly Availability</h4>
-                    <p style="font-size: 0.85rem; color: var(--time-color); margin-top:-5px;">Clears all checked checkboxes on a worker's grid.</p>
-                    <div class="form-row">
-                        <div><select id="resetWorkerSelect"></select></div>
-                        <button class="btn btn-warning" onclick="resetAvailability()">Clear Grid</button>
+                <div>
+                    <h3>Weekly Workload Statistics</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr><th>Employee Name</th><th>Assigned Shifts</th></tr>
+                            </thead>
+                            <tbody id="statsTableBody"></tbody>
+                        </table>
                     </div>
 
-                    <hr class="section-divider">
-
-                    <h4>Vacation / Out of Office</h4>
-                    <p style="font-size: 0.85rem; color: var(--time-color); margin-top:-5px;">Prevents worker from being scheduled during these dates.</p>
-                    <select id="vacationWorkerSelect" style="width:100%; margin-bottom: 10px;" onchange="updateVacationDisplay()"></select>
-                    
-                    <div class="form-row">
-                        <div><label style="font-size: 0.85rem; font-weight: bold;">Start Date:</label><br><input type="date" id="vacationStart"></div>
-                        <div><label style="font-size: 0.85rem; font-weight: bold;">End Date:</label><br><input type="date" id="vacationEnd"></div>
+                    <h3>Availability Auditor</h3>
+                    <div class="form-header">
+                        <label><strong>View Availability For:</strong></label>
+                        <select id="auditWorkerSelect" onchange="renderAuditMatrix()"></select>
                     </div>
                     
-                    <div style="display:flex; gap:10px; margin-top:5px;">
-                        <button class="btn btn-primary" style="flex:1;" onclick="setVacation()">Set OOO</button>
-                        <button class="btn" style="background-color:#64748b; flex:1;" onclick="clearVacation()">Clear OOO</button>
+                    <div style="margin-bottom: 15px;">
+                        <strong style="font-size:0.9rem; display:block; margin-bottom:5px;">Employee Notes:</strong>
+                        <div class="audit-note-area" id="auditNotesDisplay"></div>
                     </div>
-                    <div id="vacationStatus" style="margin-top:12px; font-size:0.9rem; color: #334155;"></div>
-                </div>
 
-                <h3>Manual Scheduling Overrides</h3>
-                <div class="panel-box" style="display:flex; flex-direction:column; gap:10px;">
-                    <div><label>Day</label><select id="overrideDay" style="width:100%;"></select></div>
-                    <div><label>Hour Block</label><select id="overrideHour" style="width:100%;"></select></div>
-                    <div>
-                        <label>Slot Selection</label>
-                        <select id="overrideSlot" style="width:100%;">
-                            <option value="0">Circ Desk 1</option>
-                            <option value="1">Circ Desk 2</option>
-                            <option value="2">Proactive</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label>Assign Staff Member</label>
-                        <select id="overrideWorker" style="width:100%;">
-                            <option value="">-- Choose Worker --</option>
-                            <option value="LEAVE_EMPTY">[FORCE LEAVE SLOT UNSTAFFED]</option>
-                        </select>
-                    </div>
-                    <div style="display:flex; gap:10px; margin-top:5px;">
-                        <button class="btn btn-primary" id="applyOverrideBtn" style="flex:1;" onclick="applyOverride()">Apply Override</button>
-                        <button class="btn" id="clearOverrideBtn" style="background-color:#64748b; flex:1;" onclick="clearOverride()">Clear</button>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Time Slot</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th>
+                                </tr>
+                            </thead>
+                            <tbody id="auditTableBody"></tbody>
+                        </table>
                     </div>
                 </div>
             </div>
-
-            <div>
-                <h3>Weekly Workload Statistics</h3>
-                <div class="table-wrapper">
-                    <table>
-                        <thead>
-                            <tr><th>Employee Name</th><th>Assigned Shifts</th></tr>
-                        </thead>
-                        <tbody id="statsTableBody"></tbody>
-                    </table>
+        </div>
+        
+        <!-- Saturday Sub-Tab Content -->
+        <div id="manager-saturdays-content" class="manager-sub-content" style="display: none;">
+            <div class="manager-layout">
+                <div>
+                    <h3>Build Saturday Crew</h3>
+                    <div class="panel-box">
+                        <p style="font-size: 0.85rem; color: var(--time-color); margin-top:-5px;">Assign a specific crew for a Saturday. The system will ONLY schedule these workers for that day.</p>
+                        <div class="form-row">
+                            <div>
+                                <label style="font-size: 0.85rem; font-weight: bold;">Select Saturday:</label><br>
+                                <input type="date" id="crewDateSelect" onchange="loadSaturdayCrew()">
+                            </div>
+                        </div>
+                        <div id="crewCheckboxes" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin: 15px 0;">
+                        </div>
+                        <button class="btn btn-primary" onclick="saveSaturdayCrew()">Save Crew</button>
+                    </div>
                 </div>
 
-                <h3>Availability Auditor</h3>
-                <div class="form-header">
-                    <label><strong>View Availability For:</strong></label>
-                    <select id="auditWorkerSelect" onchange="renderAuditMatrix()"></select>
-                </div>
-                
-                <div style="margin-bottom: 15px;">
-                    <strong style="font-size:0.9rem; display:block; margin-bottom:5px;">Employee Notes:</strong>
-                    <div class="audit-note-area" id="auditNotesDisplay"></div>
-                </div>
-
-                <div class="table-wrapper">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Time Slot</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th>
-                            </tr>
-                        </thead>
-                        <tbody id="auditTableBody"></tbody>
-                    </table>
+                <div>
+                    <h3>Yearly Saturday Overview</h3>
+                    <div class="panel-box">
+                        <div class="form-row" style="margin-bottom: 15px;">
+                            <div>
+                                <label style="font-size: 0.85rem; font-weight: bold;">Select Year:</label>
+                                <select id="saturdayYearSelect" onchange="renderYearlySaturdayTable()">
+                                    <!-- Options populated by JS -->
+                                </select>
+                            </div>
+                        </div>
+                        <div class="table-wrapper" style="max-height: 550px; overflow-y: auto;">
+                            <table>
+                                <thead style="position: sticky; top: 0; background: var(--header-bg); z-index: 1;">
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Assigned Staff</th>
+                                        <th style="width: 70px; text-align: center;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="yearlySaturdayTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -607,11 +650,15 @@
         
         setupFormAndSelectors();
         generateSchedule();
+        
         if (document.getElementById('manager-tab').classList.contains('active')) {
             renderStatsTable();
             renderAuditMatrix();
             renderCoverageAlerts();
             updateVacationDisplay();
+            if (document.getElementById('manager-saturdays-content').style.display !== 'none') {
+                renderYearlySaturdayTable();
+            }
         }
     }
 
@@ -802,17 +849,71 @@
 
         saturdayCrews[dateInput] = selectedWorkers;
         await syncAllStateToDB();
+        renderYearlySaturdayTable(); 
         alert("Saturday Crew saved for " + dateInput);
     }
 
+    function populateSaturdayYearSelect() {
+        const select = document.getElementById('saturdayYearSelect');
+        if (!select || select.options.length > 0) return; 
+        const currentYear = new Date().getFullYear();
+        for (let i = currentYear - 1; i <= currentYear + 2; i++) {
+            select.appendChild(new Option(i, i));
+        }
+        select.value = currentYear;
+    }
+
+    function renderYearlySaturdayTable() {
+        const tbody = document.getElementById('yearlySaturdayTableBody');
+        const yearSelect = document.getElementById('saturdayYearSelect');
+        if (!tbody || !yearSelect) return;
+        
+        tbody.innerHTML = '';
+        const year = parseInt(yearSelect.value);
+        
+        const saturdays = [];
+        let date = new Date(year, 0, 1);
+        while (date.getDay() !== 6) {
+            date.setDate(date.getDate() + 1);
+        }
+        while (date.getFullYear() === year) {
+            saturdays.push(new Date(date));
+            date.setDate(date.getDate() + 7);
+        }
+        
+        saturdays.forEach(sat => {
+            const dateStr = getFormattedDate(sat); 
+            const crewIds = saturdayCrews[dateStr] || [];
+            const crewNames = crewIds.map(id => workerNames[id] || id).join(', ');
+            
+            const options = { month: 'short', day: 'numeric', year: 'numeric' };
+            const displayDate = sat.toLocaleDateString(undefined, options);
+            
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><strong>${displayDate}</strong></td>
+                <td>${crewNames ? crewNames : '<span style="color:var(--time-color);font-style:italic;">No crew assigned</span>'}</td>
+                <td style="text-align: center;"><button class="btn btn-primary" style="padding: 4px 8px; font-size: 0.8rem;" onclick="editSaturday('${dateStr}')">Edit</button></td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    function editSaturday(dateStr) {
+        document.getElementById('crewDateSelect').value = dateStr;
+        loadSaturdayCrew();
+        document.getElementById('crewDateSelect').scrollIntoView({ behavior: 'smooth' });
+    }
 
     // --- UI HELPERS ---
 
     function switchTab(tabId) {
-        if(tabId === 'manager-tab' && !isAdminAuthenticated) tabId = 'auth-tab'; 
+        if(tabId === 'manager-tab' && !isAdminAuthenticated) {
+            tabId = 'auth-tab'; 
+        }
 
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn:not(.manager-sub-btn)').forEach(el => el.classList.remove('active'));
         document.getElementById(tabId).classList.add('active');
         
         if(tabId === 'auth-tab') {
@@ -833,6 +934,19 @@
         }
     }
 
+    function switchManagerSubTab(subTabId) {
+        document.querySelectorAll('.manager-sub-content').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.manager-sub-btn').forEach(el => el.classList.remove('active'));
+        
+        document.getElementById(`manager-${subTabId}-content`).style.display = 'block';
+        document.getElementById(`sub-btn-${subTabId}`).classList.add('active');
+        
+        if(subTabId === 'saturdays') {
+            populateSaturdayYearSelect();
+            renderYearlySaturdayTable();
+        }
+    }
+
     function verifyAdminKey() {
         const userInput = document.getElementById('managerPasswordInput').value;
         const feedback = document.getElementById('authFeedbackMessage');
@@ -840,7 +954,7 @@
             isAdminAuthenticated = true;
             feedback.style.display = "none";
             document.getElementById('managerPasswordInput').value = "";
-            switchTab('manager-tab');
+            switchTab('manager-tab'); 
         } else {
             feedback.style.display = "block";
             document.getElementById('managerPasswordInput').select();
@@ -1028,6 +1142,14 @@
                 let availableStaff = activeWorkers.filter(worker => {
                     if (isWorkerOnVacation(worker, day)) return false;
 
+                    // If Friday, exclude any worker assigned to work the upcoming Saturday
+                    if (day === 'Friday') {
+                        const satDate = getActualDateForDay('Saturday');
+                        const satDateStr = getFormattedDate(satDate);
+                        const satCrew = saturdayCrews[satDateStr] || [];
+                        if (satCrew.includes(worker)) return false;
+                    }
+
                     // Crew Logic implementation
                     if (day === 'Saturday') {
                         const satDate = getActualDateForDay('Saturday');
@@ -1048,35 +1170,51 @@
                         const workedTwoHoursAgo = (hIndex > 1) && individualWorkerSchedules[worker].some(s => 
                             s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 2]
                         );
+                        // Still strictly prevent 3 hours in a row
                         if (workedPrevHour && workedTwoHoursAgo) return false;
                     }
                     return true;
                 });
 
-                // MULTI-TIERED SORTING LOGIC:
-                // 1. Part-Time status priority (PT prioritized over FT)
-                // 2. Shift time preference match priority (Match/Any prioritized over No Match)
-                // 3. Daily desk history minimization (0 shifts today prioritized over 1+, etc.)
                 const currentPeriod = getShiftPeriod(hour);
 
+                // EQUAL-WEIGHT SORTING LOGIC:
                 availableStaff.sort((a, b) => {
-                    // Priority 1: Status (PT = 0, FT = 1)
-                    const statusA = workerStatus[a] === 'FT' ? 1 : 0;
-                    const statusB = workerStatus[b] === 'FT' ? 1 : 0;
-                    if (statusA !== statusB) return statusA - statusB;
-
-                    // Priority 2: Preference Match (Matched/Any = 0, Mis-matched = 1)
+                    // Combine into a single penalty score where each negative factor has a weight of 1
+                    let scoreA = 0;
+                    let scoreB = 0;
+                    
+                    // 1. Back-to-Back Penalty
+                    if (hIndex > 0) {
+                        if (individualWorkerSchedules[a].some(s => s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 1])) scoreA += 1;
+                        if (individualWorkerSchedules[b].some(s => s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 1])) scoreB += 1;
+                    }
+                    
+                    // 2. Status Penalty (FT = 1, PT = 0)
+                    if (workerStatus[a] === 'FT') scoreA += 1;
+                    if (workerStatus[b] === 'FT') scoreB += 1;
+                    
+                    // 3. Preference Mismatch Penalty
                     const prefA = (workerPreference[a] === currentPeriod || workerPreference[a] === 'any') ? 0 : 1;
                     const prefB = (workerPreference[b] === currentPeriod || workerPreference[b] === 'any') ? 0 : 1;
-                    if (prefA !== prefB) return prefA - prefB;
+                    scoreA += prefA;
+                    scoreB += prefB;
+                    
+                    // First evaluate based on this combined score
+                    if (scoreA !== scoreB) return scoreA - scoreB;
 
-                    // Priority 3: Shifts assigned so far today
+                    // Tie-breaker 1: Weekly Workload Balancing
+                    if (finalCalculatedWorkloads[a] !== finalCalculatedWorkloads[b]) {
+                        return finalCalculatedWorkloads[a] - finalCalculatedWorkloads[b];
+                    }
+
+                    // Tie-breaker 2: Daily desk history minimization
                     const shiftsTodayA = individualWorkerSchedules[a].filter(s => s.day === day).length;
                     const shiftsTodayB = individualWorkerSchedules[b].filter(s => s.day === day).length;
                     return shiftsTodayA - shiftsTodayB; 
                 });
 
-                let slotsToFill = (day !== 'Saturday' && ['11am', '12pm', '3pm'].includes(hour)) ? 3 : 2;
+                let slotsToFill = (day === 'Saturday' || ['11am', '12pm', '1pm', '3pm'].includes(hour)) ? 3 : 2;
                 let assigned = availableStaff.slice(0, slotsToFill);
                 let systemOverrides = overrideData[day]?.[hour] || [null, null, null];
 
