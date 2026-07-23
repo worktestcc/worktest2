@@ -6,6 +6,7 @@
     <title>Desk Schedule</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
         :root {
@@ -16,26 +17,17 @@
             --primary-color: #2563eb;
             --accent-color: #7c3aed;
         }
-        .slot-disabled {
-            background-color: #f8fafc;
-            border-bottom: 1px solid var(--border-color);
-            border-right: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .slot-disabled::after {
-            content: '-';
-            color: #cbd5e1;
-            font-size: 1.5rem;
-        }
-
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             color: var(--text-color);
             margin: 0;
             padding: 20px;
             background-color: #f1f5f9;
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 10px; }
         }
 
         .container {
@@ -57,10 +49,13 @@
         .tabs {
             display: flex; gap: 10px; margin-bottom: 20px;
             border-bottom: 2px solid var(--border-color); padding-bottom: 10px;
+            flex-wrap: wrap; /* Makes tabs responsive */
         }
         .tab-btn {
             background: none; border: none; padding: 10px 20px; font-size: 1rem;
             font-weight: 600; color: var(--time-color); cursor: pointer; border-radius: 6px;
+            flex: 1 1 auto; /* Allows tabs to resize on mobile */
+            white-space: nowrap;
         }
         .tab-btn.active { background-color: var(--primary-color); color: white; }
         .tab-btn.manager-style.active { background-color: var(--accent-color); }
@@ -69,18 +64,26 @@
             border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
         }
         .tab-content.active { display: block; }
+        
+        @media (max-width: 768px) {
+            .tab-content { padding: 15px; }
+        }
 
         /* Forms & Inputs */
-        .form-header { display: flex; gap: 15px; align-items: center; margin-bottom: 20px; }
+        .form-header { display: flex; gap: 15px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
         select, input[type="text"], input[type="password"], input[type="date"], textarea {
             padding: 8px 16px; font-size: 1rem; border-radius: 6px;
-            border: 1px solid #cbd5e1; background-color: white;
+            border: 1px solid #cbd5e1; background-color: white; width: 100%; box-sizing: border-box;
         }
-        textarea { width: 100%; box-sizing: border-box; font-family: inherit; resize: vertical; }
+        textarea { font-family: inherit; resize: vertical; }
         
         .btn {
             background-color: #10b981; color: white; border: none; padding: 10px 20px;
             font-size: 0.95rem; font-weight: 600; border-radius: 6px; cursor: pointer;
+            width: 100%; box-sizing: border-box;
+        }
+        @media (min-width: 768px) {
+            .btn { width: auto; } /* Normal width on desktop */
         }
         .btn:hover { background-color: #059669; }
         .btn-primary { background-color: var(--primary-color); }
@@ -99,8 +102,8 @@
         }
 
         /* Tables styling */
-        .table-wrapper { overflow-x: auto; margin-bottom: 25px; }
-        table { width: 100%; border-collapse: collapse; text-align: left; }
+        .table-wrapper { overflow-x: auto; margin-bottom: 25px; width: 100%; }
+        table { width: 100%; border-collapse: collapse; text-align: left; min-width: 600px; }
         th, td { border: 1px solid var(--border-color); padding: 12px; font-size: 0.9rem; }
         th { background-color: var(--header-bg); font-weight: 600; }
         .checkbox-label {
@@ -114,29 +117,49 @@
         .alert-panel.danger { background-color: #fef2f2; border-color: #fecaca; color: #991b1b; }
         .alert-list { margin: 8px 0 0 20px; padding: 0; font-size: 0.9rem; max-height: 150px; overflow-y: auto; }
 
-        /* Calendar Grid */
+        /* Calendar Grid & Responsiveness */
+        .calendar-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
         .calendar-grid {
             display: grid; 
             grid-template-columns: 90px repeat(6, minmax(170px, 1fr));
             grid-template-rows: 40px repeat(10, auto); 
-            border: 1px solid var(--border-color);
-            border-radius: 8px; overflow: hidden;
+            min-width: 1000px; /* Forces scrolling on small screens */
+            background: #fff;
         }
         .grid-header {
             background-color: var(--header-bg); font-weight: 600; display: flex;
             align-items: center; justify-content: center; border-bottom: 2px solid var(--border-color);
             border-right: 1px solid var(--border-color); padding: 10px 0;
+            position: sticky; top: 0; z-index: 2;
         }
         .time-slot {
             font-size: 0.85rem; color: var(--time-color); font-weight: 500; padding-right: 10px;
             display: flex; justify-content: flex-end; align-items: flex-start; padding-top: 10px;
             grid-column: 1; border-right: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);
-            background: #fff;
+            background: #f8fafc; position: sticky; left: 0; z-index: 1;
         }
         .day-slot {
             border-bottom: 1px solid var(--border-color); border-right: 1px solid var(--border-color);
             background: #fff; padding: 10px 8px; display: flex; flex-direction: column; gap: 5px;
             box-sizing: border-box; min-height: 85px;
+        }
+        .slot-disabled {
+            background-color: #f8fafc;
+            border-bottom: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .slot-disabled::after {
+            content: '-';
+            color: #cbd5e1;
+            font-size: 1.5rem;
         }
 
         /* Pills */
@@ -186,9 +209,8 @@
             background: var(--header-bg); padding:15px; border-radius:6px; 
             border: 1px solid var(--border-color); margin-bottom: 20px;
         }
-        .form-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+        .form-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 10px; flex-wrap: wrap; }
         .form-row > div { flex: 1; min-width: 150px; }
-        .form-row input, .form-row select { width: 100%; box-sizing: border-box; }
         .section-divider { margin: 15px 0; border: none; border-top: 1px solid var(--border-color); }
     </style>
 </head>
@@ -210,15 +232,19 @@
 
     <div id="calendar-tab" class="tab-content active">
         <h2 id="calendar-heading">Weekly Schedule</h2>
-        <div class="calendar-grid" id="calendarGrid"></div>
+        <div class="calendar-wrapper">
+            <div class="calendar-grid" id="calendarGrid"></div>
+        </div>
     </div>
 
     <div id="form-tab" class="tab-content">
         <h2>Submit / Update Availability</h2>
         
         <div class="form-header">
-            <label for="workerSelect"><strong>Select Employee:</strong></label>
-            <select id="workerSelect" onchange="loadWorkerAvailability()"></select>
+            <div style="flex: 1; max-width: 300px;">
+                <label for="workerSelect" style="display:block; margin-bottom:5px;"><strong>Select Employee:</strong></label>
+                <select id="workerSelect" onchange="loadWorkerAvailability()"></select>
+            </div>
         </div>
 
         <div class="form-row" style="margin-bottom: 20px; max-width: 600px;">
@@ -241,8 +267,9 @@
         </div>
 
         <div class="worker-dashboard-grid">
-            <div>
-                <p style="font-size: 0.9rem; color: var(--time-color); margin-top:-10px; margin-bottom: 15px;">
+            <div style="overflow: hidden;">
+                <!-- Fixed margin to prevent top clipping -->
+                <p style="font-size: 0.9rem; color: var(--time-color); margin-top: 5px; margin-bottom: 15px;">
                     Check the blocks below where you are available to work the desk.
                 </p>
                 <div class="table-wrapper">
@@ -307,7 +334,7 @@
                         <h4>Add New Worker</h4>
                         <div class="form-row">
                             <div><input type="text" id="newHireName" placeholder="Worker Name..."></div>
-                            <button class="btn btn-primary" style="white-space: nowrap;" onclick="addWorker()">Add Worker</button>
+                            <div><button class="btn btn-primary" onclick="addWorker()">Add Worker</button></div>
                         </div>
 
                         <hr class="section-divider">
@@ -316,7 +343,7 @@
                         <div class="form-row">
                             <div><select id="renameWorkerSelect"></select></div>
                             <div><input type="text" id="newWorkerName" placeholder="Enter new name..."></div>
-                            <button class="btn btn-primary" onclick="renameWorker()">Update</button>
+                            <div><button class="btn btn-primary" onclick="renameWorker()">Update</button></div>
                         </div>
 
                         <hr class="section-divider">
@@ -324,7 +351,7 @@
                         <h4>Remove Worker</h4>
                         <div class="form-row">
                             <div><select id="removeWorkerSelect"></select></div>
-                            <button class="btn btn-danger" style="white-space: nowrap;" onclick="deleteWorker()">Delete Worker</button>
+                            <div><button class="btn btn-danger" onclick="deleteWorker()">Delete Worker</button></div>
                         </div>
                     </div>
 
@@ -334,7 +361,7 @@
                         <p style="font-size: 0.85rem; color: var(--time-color); margin-top:-5px;">Clears all checked checkboxes on a worker's grid.</p>
                         <div class="form-row">
                             <div><select id="resetWorkerSelect"></select></div>
-                            <button class="btn btn-warning" onclick="resetAvailability()">Clear Grid</button>
+                            <div><button class="btn btn-warning" onclick="resetAvailability()">Clear Grid</button></div>
                         </div>
 
                         <hr class="section-divider">
@@ -348,11 +375,27 @@
                             <div><label style="font-size: 0.85rem; font-weight: bold;">End Date:</label><br><input type="date" id="vacationEnd"></div>
                         </div>
                         
-                        <div style="display:flex; gap:10px; margin-top:5px;">
+                        <div style="display:flex; gap:10px; margin-top:5px; flex-wrap:wrap;">
                             <button class="btn btn-primary" style="flex:1;" onclick="setVacation()">Set OOO</button>
                             <button class="btn" style="background-color:#64748b; flex:1;" onclick="clearVacation()">Clear OOO</button>
                         </div>
                         <div id="vacationStatus" style="margin-top:12px; font-size:0.9rem; color: #334155;"></div>
+                    </div>
+
+                    <h3>Holiday Management</h3>
+                    <div class="panel-box">
+                        <p style="font-size: 0.85rem; color: var(--time-color); margin-top:-5px;">Mark a specific date as a holiday to grey it out and close it on the calendar.</p>
+                        <div class="form-row">
+                            <div>
+                                <label style="font-size: 0.85rem; font-weight: bold;">Select Date:</label><br>
+                                <input type="date" id="holidayDateSelect" onchange="checkHolidayStatus()">
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+                            <button class="btn btn-primary" style="flex:1;" onclick="setHoliday()">Mark Holiday</button>
+                            <button class="btn btn-danger" style="flex:1;" onclick="clearHoliday()">Clear Holiday</button>
+                        </div>
+                        <div id="holidayStatus" style="margin-top:12px; font-size:0.9rem; color: #334155;"></div>
                     </div>
 
                     <h3>Manual Scheduling Overrides</h3>
@@ -374,28 +417,47 @@
                                 <option value="LEAVE_EMPTY">[FORCE LEAVE SLOT UNSTAFFED]</option>
                             </select>
                         </div>
-                        <div style="display:flex; gap:10px; margin-top:5px;">
+                        <div style="display:flex; gap:10px; margin-top:5px; flex-wrap:wrap;">
                             <button class="btn btn-primary" id="applyOverrideBtn" style="flex:1;" onclick="applyOverride()">Apply Override</button>
                             <button class="btn" id="clearOverrideBtn" style="background-color:#64748b; flex:1;" onclick="clearOverride()">Clear</button>
                         </div>
                     </div>
                 </div>
 
-                <div>
+                <div style="overflow: hidden;">
                     <h3>Weekly Workload Statistics</h3>
-                    <div class="table-wrapper">
-                        <table>
-                            <thead>
-                                <tr><th>Employee Name</th><th>Assigned Shifts</th></tr>
-                            </thead>
-                            <tbody id="statsTableBody"></tbody>
-                        </table>
+                    <div class="panel-box" style="position: relative; height: 350px;">
+                        <canvas id="workloadChart"></canvas>
                     </div>
 
                     <h3>Availability Auditor</h3>
-                    <div class="form-header">
-                        <label><strong>View Availability For:</strong></label>
-                        <select id="auditWorkerSelect" onchange="renderAuditMatrix()"></select>
+                    
+                    <!-- Availability Search Feature -->
+                    <div class="panel-box">
+                        <h4>Find Available Staff</h4>
+                        <p style="font-size: 0.85rem; color: var(--time-color); margin-top:-5px;">Search for workers available at a specific day and time.</p>
+                        <div class="form-row">
+                            <div>
+                                <label style="font-size: 0.85rem; font-weight: bold;">Day</label>
+                                <select id="searchDaySelect"></select>
+                            </div>
+                            <div>
+                                <label style="font-size: 0.85rem; font-weight: bold;">Hour</label>
+                                <select id="searchHourSelect"></select>
+                            </div>
+                            <div>
+                                <button class="btn btn-primary" onclick="searchAvailability()">Search Slot</button>
+                            </div>
+                        </div>
+                        <div id="searchResultDisplay" style="margin-top: 10px; font-size: 0.95rem; line-height: 1.5;"></div>
+                    </div>
+
+                    <!-- Individual Worker Matrix -->
+                    <div class="form-header" style="margin-top: 30px;">
+                        <div style="flex: 1;">
+                            <label><strong>View Individual Matrix For:</strong></label>
+                            <select id="auditWorkerSelect" onchange="renderAuditMatrix()"></select>
+                        </div>
                     </div>
                     
                     <div style="margin-bottom: 15px;">
@@ -430,13 +492,13 @@
                                 <input type="date" id="crewDateSelect" onchange="loadSaturdayCrew()">
                             </div>
                         </div>
-                        <div id="crewCheckboxes" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin: 15px 0;">
+                        <div id="crewCheckboxes" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; margin: 15px 0;">
                         </div>
                         <button class="btn btn-primary" onclick="saveSaturdayCrew()">Save Crew</button>
                     </div>
                 </div>
 
-                <div>
+                <div style="overflow: hidden;">
                     <h3>Yearly Saturday Overview</h3>
                     <div class="panel-box">
                         <div class="form-row" style="margin-bottom: 15px;">
@@ -484,18 +546,20 @@
     let availabilityData = {};
     let globalNotesData = {}; 
     let overrideData = {}; 
-    let vacationData = {}; // Format: { workerId: { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD' } }
-    let saturdayCrews = {}; // Format: { 'YYYY-MM-DD': ['Worker_1', 'Worker_2'] }
+    let vacationData = {}; 
+    let saturdayCrews = {}; 
+    let holidayData = {}; 
     
     // Status and Preference State
-    let workerStatus = {}; // Tracks 'FT' or 'PT'
-    let workerPreference = {}; // Tracks 'morning', 'afternoon', 'evening', or 'any'
+    let workerStatus = {}; 
+    let workerPreference = {}; 
     
     // Transient tracking data
     let finalCalculatedWorkloads = {};
     let emptySlotsTracker = []; 
     let individualWorkerSchedules = {}; 
     let isAdminAuthenticated = false; 
+    let workloadChartInstance = null; 
 
     // Date Calculator Function
     function getWeekDates() {
@@ -545,7 +609,6 @@
         return targetDate >= startDate && targetDate <= endDate;
     }
 
-    // Helper to translate shift hour string into morning, afternoon, or evening period
     function getShiftPeriod(hourStr) {
         const h = parseInt(hourStr);
         if (hourStr.includes('am') || h === 12) return 'morning'; 
@@ -553,11 +616,10 @@
         return 'evening'; 
     }
 
-    // Build empty data structures
     function createEmptyDataStructure() {
         activeWorkers.forEach(worker => {
-            if(!workerStatus[worker]) workerStatus[worker] = 'PT'; // Default to Part-Time
-            if(!workerPreference[worker]) workerPreference[worker] = 'any'; // Default to No Preference
+            if(!workerStatus[worker]) workerStatus[worker] = 'PT';
+            if(!workerPreference[worker]) workerPreference[worker] = 'any';
             if(!availabilityData[worker]) availabilityData[worker] = {};
             if(globalNotesData[worker] === undefined) globalNotesData[worker] = ""; 
             DAYS.forEach(day => {
@@ -580,7 +642,7 @@
 
     // Boot & Sync
     async function bootDatabaseSync() {
-        activeWorkers.forEach(w => workerNames[w] = w); // Temp init
+        activeWorkers.forEach(w => workerNames[w] = w);
 
         try {
             const { data, error } = await supabaseClient
@@ -602,6 +664,7 @@
                 if (data.overrides) Object.assign(overrideData, data.overrides);
                 if (data.vacation_data) vacationData = data.vacation_data;
                 if (data.saturday_crews) saturdayCrews = data.saturday_crews;
+                if (data.holiday_data) holidayData = data.holiday_data;
             } else {
                 createEmptyDataStructure();
                 await supabaseClient.from('app_state').insert([{ 
@@ -614,12 +677,13 @@
                     notes: globalNotesData, 
                     overrides: overrideData,
                     vacation_data: vacationData,
-                    saturday_crews: saturdayCrews
+                    saturday_crews: saturdayCrews,
+                    holiday_data: holidayData
                 }]);
             }
         } catch(err) { console.error("Boot error:", err); }
 
-        createEmptyDataStructure(); // Ensure newly loaded dynamic workers have structure
+        createEmptyDataStructure(); 
 
         document.getElementById('loadingOverlay').style.display = 'none';
         document.getElementById('mainContainer').style.display = 'block';
@@ -629,7 +693,6 @@
         loadWorkerAvailability();
     }
 
-    // Push State to Database
     async function syncAllStateToDB() {
         const { error } = await supabaseClient
             .from('app_state')
@@ -642,7 +705,8 @@
                 notes: globalNotesData, 
                 overrides: overrideData,
                 vacation_data: vacationData,
-                saturday_crews: saturdayCrews
+                saturday_crews: saturdayCrews,
+                holiday_data: holidayData
             })
             .eq('id', 1);
 
@@ -652,10 +716,11 @@
         generateSchedule();
         
         if (document.getElementById('manager-tab').classList.contains('active')) {
-            renderStatsTable();
+            renderStatsChart();
             renderAuditMatrix();
             renderCoverageAlerts();
             updateVacationDisplay();
+            checkHolidayStatus();
             if (document.getElementById('manager-saturdays-content').style.display !== 'none') {
                 renderYearlySaturdayTable();
             }
@@ -674,7 +739,6 @@
         });
         globalNotesData[currentWorker] = document.getElementById('workerGlobalNote').value;
         
-        // Save Status and Time preference choices
         workerStatus[currentWorker] = document.getElementById('statusSelect').value;
         workerPreference[currentWorker] = document.getElementById('prefSelect').value;
 
@@ -725,14 +789,12 @@
         delete globalNotesData[id];
         delete vacationData[id];
 
-        // Clean up overrides
         DAYS.forEach(day => {
             HOURS.forEach(hour => {
                 overrideData[day][hour] = overrideData[day][hour].map(val => val === id ? null : val);
             });
         });
 
-        // Clean up Saturday Crews
         Object.keys(saturdayCrews).forEach(date => {
             saturdayCrews[date] = saturdayCrews[date].filter(w => w !== id);
         });
@@ -798,6 +860,37 @@
             display.innerHTML = `<strong>Current OOO Status:</strong> Away from ${vacationData[id].start} to ${vacationData[id].end}`;
         } else {
             display.innerHTML = `<strong>Current OOO Status:</strong> Active / Working`;
+        }
+    }
+
+    async function setHoliday() {
+        const dateInput = document.getElementById('holidayDateSelect').value;
+        if(!dateInput) return alert("Please select a date first.");
+        holidayData[dateInput] = true;
+        await syncAllStateToDB();
+        checkHolidayStatus();
+        alert("Date marked as holiday successfully.");
+    }
+
+    async function clearHoliday() {
+        const dateInput = document.getElementById('holidayDateSelect').value;
+        if(!dateInput) return alert("Please select a date first.");
+        if(!holidayData[dateInput]) return alert("This date is not marked as a holiday.");
+        delete holidayData[dateInput];
+        await syncAllStateToDB();
+        checkHolidayStatus();
+        alert("Holiday status removed for this date.");
+    }
+
+    function checkHolidayStatus() {
+        const dateInput = document.getElementById('holidayDateSelect').value;
+        const display = document.getElementById('holidayStatus');
+        if(!display || !dateInput) return;
+        
+        if(holidayData[dateInput]) {
+            display.innerHTML = `<strong>Status:</strong> <span style="color:#ef4444; font-weight:bold;">Marked as Holiday (Closed)</span>`;
+        } else {
+            display.innerHTML = `<strong>Status:</strong> <span style="color:#10b981; font-weight:bold;">Normal Operating Day</span>`;
         }
     }
 
@@ -927,10 +1020,12 @@
         generateSchedule();
         if (tabId === 'form-tab') loadWorkerAvailability(); 
         else if (tabId === 'manager-tab') {
-            renderStatsTable();
+            renderStatsChart();
             renderAuditMatrix();
             renderCoverageAlerts();
             updateVacationDisplay();
+            checkHolidayStatus();
+            document.getElementById('searchResultDisplay').innerHTML = ''; // Reset search on tab switch
         }
     }
 
@@ -944,6 +1039,8 @@
         if(subTabId === 'saturdays') {
             populateSaturdayYearSelect();
             renderYearlySaturdayTable();
+        } else if(subTabId === 'general') {
+            checkHolidayStatus();
         }
     }
 
@@ -1005,6 +1102,17 @@
             HOURS.forEach((hour, idx) => hourSelect.appendChild(new Option(HOUR_LABELS[idx], hour)));
         }
 
+        // Setup Auditor Search Dropdowns
+        const searchDaySelect = document.getElementById('searchDaySelect');
+        if (searchDaySelect && searchDaySelect.options.length === 0) {
+            DAYS.forEach(day => searchDaySelect.appendChild(new Option(day, day)));
+        }
+        
+        const searchHourSelect = document.getElementById('searchHourSelect');
+        if (searchHourSelect && searchHourSelect.options.length === 0) {
+            HOURS.forEach((hour, idx) => searchHourSelect.appendChild(new Option(HOUR_LABELS[idx], hour)));
+        }
+
         const weekDates = getWeekDates();
         
         const formTableHead = document.querySelector('#formTableBody')?.parentElement.querySelector('thead tr');
@@ -1054,7 +1162,6 @@
         });
         document.getElementById('workerGlobalNote').value = globalNotesData[currentWorker] || "";
         
-        // Load Status and preference choices or set back to defaults
         document.getElementById('statusSelect').value = workerStatus[currentWorker] || 'PT';
         document.getElementById('prefSelect').value = workerPreference[currentWorker] || 'any';
         
@@ -1071,7 +1178,6 @@
         
         const shifts = individualWorkerSchedules[workerName] || [];
 
-        // Sort shifts by day, then by time
         shifts.sort((a, b) => {
             const dayDiff = DAYS.indexOf(a.day) - DAYS.indexOf(b.day);
             if (dayDiff !== 0) return dayDiff;
@@ -1124,10 +1230,14 @@
                 let hourVal = parseInt(hour);
                 if (hour.includes('pm') && hourVal !== 12) hourVal += 12;
 
+                const actualDate = getActualDateForDay(day);
+                const dateStr = getFormattedDate(actualDate);
+                const isHoliday = holidayData[dateStr] === true;
+
                 const isFridayRestricted = (day === 'Friday' && (hourVal < 10 || hourVal >= 17));
                 const isSaturdayRestricted = (day === 'Saturday' && (hourVal < 10 || hourVal >= 14));
                 
-                if (isFridayRestricted || isSaturdayRestricted) {
+                if (isHoliday || isFridayRestricted || isSaturdayRestricted) {
                     let disabledDiv = document.createElement('div');
                     disabledDiv.className = 'slot-disabled';
                     disabledDiv.style.gridRowStart = hIndex + 2;
@@ -1142,7 +1252,6 @@
                 let availableStaff = activeWorkers.filter(worker => {
                     if (isWorkerOnVacation(worker, day)) return false;
 
-                    // If Friday, exclude any worker assigned to work the upcoming Saturday
                     if (day === 'Friday') {
                         const satDate = getActualDateForDay('Saturday');
                         const satDateStr = getFormattedDate(satDate);
@@ -1150,7 +1259,6 @@
                         if (satCrew.includes(worker)) return false;
                     }
 
-                    // Crew Logic implementation
                     if (day === 'Saturday') {
                         const satDate = getActualDateForDay('Saturday');
                         const satDateStr = getFormattedDate(satDate);
@@ -1170,7 +1278,6 @@
                         const workedTwoHoursAgo = (hIndex > 1) && individualWorkerSchedules[worker].some(s => 
                             s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 2]
                         );
-                        // Still strictly prevent 3 hours in a row
                         if (workedPrevHour && workedTwoHoursAgo) return false;
                     }
                     return true;
@@ -1178,37 +1285,29 @@
 
                 const currentPeriod = getShiftPeriod(hour);
 
-                // EQUAL-WEIGHT SORTING LOGIC:
                 availableStaff.sort((a, b) => {
-                    // Combine into a single penalty score where each negative factor has a weight of 1
                     let scoreA = 0;
                     let scoreB = 0;
                     
-                    // 1. Back-to-Back Penalty
                     if (hIndex > 0) {
                         if (individualWorkerSchedules[a].some(s => s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 1])) scoreA += 1;
                         if (individualWorkerSchedules[b].some(s => s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 1])) scoreB += 1;
                     }
                     
-                    // 2. Status Penalty (FT = 1, PT = 0)
                     if (workerStatus[a] === 'FT') scoreA += 1;
                     if (workerStatus[b] === 'FT') scoreB += 1;
                     
-                    // 3. Preference Mismatch Penalty
                     const prefA = (workerPreference[a] === currentPeriod || workerPreference[a] === 'any') ? 0 : 1;
                     const prefB = (workerPreference[b] === currentPeriod || workerPreference[b] === 'any') ? 0 : 1;
                     scoreA += prefA;
                     scoreB += prefB;
                     
-                    // First evaluate based on this combined score
                     if (scoreA !== scoreB) return scoreA - scoreB;
 
-                    // Tie-breaker 1: Weekly Workload Balancing
                     if (finalCalculatedWorkloads[a] !== finalCalculatedWorkloads[b]) {
                         return finalCalculatedWorkloads[a] - finalCalculatedWorkloads[b];
                     }
 
-                    // Tie-breaker 2: Daily desk history minimization
                     const shiftsTodayA = individualWorkerSchedules[a].filter(s => s.day === day).length;
                     const shiftsTodayB = individualWorkerSchedules[b].filter(s => s.day === day).length;
                     return shiftsTodayA - shiftsTodayB; 
@@ -1220,7 +1319,7 @@
 
                 for (let i = 0; i < slotsToFill; i++) {
                     let pill = document.createElement('div');
-                    let isExtraSlot = i === 2; // applies specific styling & flags for the 3rd slot
+                    let isExtraSlot = i === 2; 
 
                     if (systemOverrides[i] !== null && activeWorkers.includes(systemOverrides[i]) || systemOverrides[i] === "LEAVE_EMPTY") {
                         if(systemOverrides[i] !== "LEAVE_EMPTY") {
@@ -1244,7 +1343,6 @@
                     cellDiv.appendChild(pill);
                 }
 
-                // Add override logic backward compatibility in case an override was explicitly set in slot 3 for non-extra hours
                 if (slotsToFill === 2 && systemOverrides[2] !== null && systemOverrides[2] !== "LEAVE_EMPTY" && activeWorkers.includes(systemOverrides[2])) {
                     let extraPill = document.createElement('div'); 
                     extraPill.className = 'worker-pill extra-help'; 
@@ -1271,16 +1369,55 @@
         }
     }
 
-    function renderStatsTable() {
-        const tbody = document.getElementById('statsTableBody');
-        if(!tbody) return; 
-        tbody.innerHTML = '';
+    function renderStatsChart() {
+        const ctx = document.getElementById('workloadChart');
+        if(!ctx) return; 
+        
+        const labels = [];
+        const data = [];
         
         Object.keys(finalCalculatedWorkloads).forEach(worker => {
-            const displayName = workerNames[worker] || worker;
-            let row = document.createElement('tr'); 
-            row.innerHTML = `<td><strong>${displayName}</strong></td><td>${finalCalculatedWorkloads[worker]} shifts assigned</td>`;
-            tbody.appendChild(row);
+            labels.push(workerNames[worker] || worker);
+            data.push(finalCalculatedWorkloads[worker]);
+        });
+
+        if (workloadChartInstance) {
+            workloadChartInstance.destroy();
+        }
+
+        workloadChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Assigned Shifts',
+                    data: data,
+                    backgroundColor: 'rgba(37, 99, 235, 0.7)', 
+                    borderColor: 'rgba(37, 99, 235, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1 } 
+                    }
+                },
+                plugins: {
+                    legend: { display: false }, 
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.parsed.y} shifts assigned`;
+                            }
+                        }
+                    }
+                }
+            }
         });
     }
 
@@ -1313,6 +1450,42 @@
             });
             tbody.appendChild(row);
         });
+    }
+
+    function searchAvailability() {
+        const day = document.getElementById('searchDaySelect').value;
+        const hour = document.getElementById('searchHourSelect').value;
+        const display = document.getElementById('searchResultDisplay');
+        
+        if(!day || !hour) return;
+
+        let availableWorkers = [];
+
+        activeWorkers.forEach(worker => {
+            if (isWorkerOnVacation(worker, day)) return;
+            
+            if (day === 'Friday' || day === 'Saturday') {
+                const satDate = getActualDateForDay('Saturday');
+                const satDateStr = getFormattedDate(satDate);
+                const crew = saturdayCrews[satDateStr] || [];
+                
+                if (day === 'Friday' && crew.includes(worker)) return;
+                if (day === 'Saturday' && !crew.includes(worker)) return;
+            }
+
+            if (availabilityData[worker]?.[day]?.[hour] === true) {
+                availableWorkers.push(workerNames[worker] || worker);
+            }
+        });
+
+        const hourLabelIndex = HOURS.indexOf(hour);
+        const prettyHour = hourLabelIndex !== -1 ? HOUR_LABELS[hourLabelIndex] : hour;
+
+        if (availableWorkers.length > 0) {
+            display.innerHTML = `<strong>Available for ${day} at ${prettyHour}:</strong><br><span style="color: #10b981; font-weight: 500;">${availableWorkers.join(', ')}</span>`;
+        } else {
+            display.innerHTML = `<strong>Availability for ${day} at ${prettyHour}:</strong><br><span style="color: #ef4444; font-weight: 500;">No staff explicitly marked available.</span>`;
+        }
     }
 
     async function applyOverride() {
@@ -1365,6 +1538,5 @@
     });
 
 </script>
-<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"642255d447fd46dbbcd67f3ff9dbdf59","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
