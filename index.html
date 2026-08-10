@@ -231,7 +231,15 @@
     </div>
 
     <div id="calendar-tab" class="tab-content active">
-        <h2 id="calendar-heading">Weekly Schedule</h2>
+        <!-- Public Schedule Week Navigator -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+            <h2 id="calendar-heading" style="margin: 0;">Weekly Schedule</h2>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button class="btn" style="background-color: var(--primary-color); padding: 6px 12px; font-size: 0.85rem;" onclick="changePublicWeek(-1)">◀ Previous Week</button>
+                <button class="btn" style="background-color: #64748b; padding: 6px 12px; font-size: 0.85rem;" onclick="resetPublicWeekToCurrent()">Current Week</button>
+                <button class="btn" style="background-color: var(--primary-color); padding: 6px 12px; font-size: 0.85rem;" onclick="changePublicWeek(1)">Next Week ▶</button>
+            </div>
+        </div>
         <div class="calendar-wrapper">
             <div class="calendar-grid" id="calendarGrid"></div>
         </div>
@@ -325,6 +333,7 @@
         <div class="tabs">
             <button id="sub-btn-general" class="tab-btn manager-sub-btn active" onclick="switchManagerSubTab('general')">General Operations</button>
             <button id="sub-btn-saturdays" class="tab-btn manager-sub-btn manager-style" onclick="switchManagerSubTab('saturdays')">Saturday Management</button>
+            <button id="sub-btn-drafts" class="tab-btn manager-sub-btn manager-style" onclick="switchManagerSubTab('drafts')">Future Schedule Drafts</button>
         </div>
 
         <!-- General Manager Tab -->
@@ -529,6 +538,59 @@
                 </div>
             </div>
         </div>
+
+        <!-- Future Schedule Drafts Sub-Tab Content -->
+        <div id="manager-drafts-content" class="manager-sub-content" style="display: none;">
+            <div class="panel-box" style="margin-bottom: 20px;">
+                <h3>Select Week to Draft / Edit</h3>
+                <p style="font-size: 0.85rem; color: var(--time-color);">Choose the Monday of any future week to configure custom slot overrides for that specific week.</p>
+                <div class="form-row" style="max-width: 400px;">
+                    <div>
+                        <input type="date" id="draftWeekSelect" onchange="loadDraftWeekData()">
+                    </div>
+                    <div>
+                        <button class="btn btn-primary" onclick="jumpToDraftWeek()">Load Week Draft</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-box">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                    <h3 id="draftEditorHeading" style="margin: 0;">Editing Draft for Week: --</h3>
+                    <button class="btn" style="background-color: var(--primary-color);" onclick="saveCurrentDraft()">Save Draft Changes</button>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--time-color);">Configure manual overrides below. When the public schedule navigates to this week, it will automatically use these customized slots.</p>
+                
+                <div class="form-row" style="margin-top: 15px; background: #fff; padding: 15px; border-radius: 6px; border: 1px solid var(--border-color);">
+                    <div><label>Day</label><select id="draftOverrideDay" style="width:100%;"></select></div>
+                    <div><label>Hour Block</label><select id="draftOverrideHour" style="width:100%;"></select></div>
+                    <div>
+                        <label>Slot Selection</label>
+                        <select id="draftOverrideSlot" style="width:100%;">
+                            <option value="0">Circ Desk 1</option>
+                            <option value="1">Circ Desk 2</option>
+                            <option value="2">Proactive</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Assign Staff Member</label>
+                        <select id="draftOverrideWorker" style="width:100%;">
+                            <option value="">-- Choose Worker --</option>
+                            <option value="LEAVE_EMPTY">[FORCE LEAVE SLOT UNSTAFFED]</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>&nbsp;</label><br>
+                        <button class="btn btn-primary" style="width: 100%;" onclick="applyDraftOverride()">Set Draft Slot</button>
+                    </div>
+                </div>
+
+                <div class="calendar-wrapper" style="margin-top: 20px;">
+                    <div class="calendar-grid" id="draftCalendarGrid"></div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -553,6 +615,7 @@
     let vacationData = {}; 
     let saturdayCrews = {}; 
     let holidayData = {}; 
+    let weeklyDrafts = {}; // Stores custom overrides per week keyed by Monday's date string (YYYY-MM-DD)
     
     // Status and Preference State
     let workerStatus = {}; 
@@ -564,12 +627,16 @@
     let individualWorkerSchedules = {}; 
     let isAdminAuthenticated = false; 
     let workloadChartInstance = null; 
+    
+    // Navigation state for public schedule and draft manager
+    let publicScheduleWeekOffset = 0; // 0 means current week, +1 next week, etc.
+    let currentEditingDraftMondayStr = '';
 
     // Date Calculator Function
-    function getWeekDates() {
+    function getWeekDates(offsetWeeks = 0) {
         const today = new Date();
         const dayOfWeek = today.getDay();
-        const diff = today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
+        const diff = today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1) + (offsetWeeks * 7);
         const monday = new Date(today);
         monday.setDate(diff);
 
@@ -583,11 +650,11 @@
         return weekDates;
     }
 
-    // Convert string day name to exact Date object for the current week
-    function getActualDateForDay(dayName) {
+    // Convert string day name to exact Date object for a given week offset
+    function getActualDateForDay(dayName, offsetWeeks = 0) {
         const today = new Date();
         const dayOfWeek = today.getDay();
-        const diff = today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
+        const diff = today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1) + (offsetWeeks * 7);
         const monday = new Date(today);
         monday.setDate(diff);
         
@@ -597,18 +664,23 @@
         return targetDate;
     }
 
+    function getMondayDateStr(offsetWeeks = 0) {
+        const monday = getActualDateForDay('Monday', offsetWeeks);
+        return getFormattedDate(monday);
+    }
+
     function getFormattedDate(date) {
         return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     }
 
     // Check if worker is on vacation on a specific day
-    function isWorkerOnVacation(workerId, dayName) {
+    function isWorkerOnVacation(workerId, dayName, offsetWeeks = 0) {
         if(!vacationData[workerId]) return false;
         
         const vacay = vacationData[workerId];
         const startDate = new Date(vacay.start + 'T00:00:00');
         const endDate = new Date(vacay.end + 'T23:59:59');
-        const targetDate = getActualDateForDay(dayName);
+        const targetDate = getActualDateForDay(dayName, offsetWeeks);
 
         return targetDate >= startDate && targetDate <= endDate;
     }
@@ -669,6 +741,7 @@
                 if (data.vacation_data) vacationData = data.vacation_data;
                 if (data.saturday_crews) saturdayCrews = data.saturday_crews;
                 if (data.holiday_data) holidayData = data.holiday_data;
+                if (data.weekly_drafts) weeklyDrafts = data.weekly_drafts;
             } else {
                 createEmptyDataStructure();
                 await supabaseClient.from('app_state').insert([{ 
@@ -682,7 +755,8 @@
                     overrides: overrideData,
                     vacation_data: vacationData,
                     saturday_crews: saturdayCrews,
-                    holiday_data: holidayData
+                    holiday_data: holidayData,
+                    weekly_drafts: weeklyDrafts
                 }]);
             }
         } catch(err) { console.error("Boot error:", err); }
@@ -710,7 +784,8 @@
                 overrides: overrideData,
                 vacation_data: vacationData,
                 saturday_crews: saturdayCrews,
-                holiday_data: holidayData
+                holiday_data: holidayData,
+                weekly_drafts: weeklyDrafts
             })
             .eq('id', 1);
 
@@ -727,6 +802,9 @@
             checkHolidayStatus();
             if (document.getElementById('manager-saturdays-content').style.display !== 'none') {
                 renderYearlySaturdayTable();
+            }
+            if (document.getElementById('manager-drafts-content').style.display !== 'none' && currentEditingDraftMondayStr) {
+                renderDraftCalendar();
             }
         }
     }
@@ -801,6 +879,15 @@
 
         Object.keys(saturdayCrews).forEach(date => {
             saturdayCrews[date] = saturdayCrews[date].filter(w => w !== id);
+        });
+
+        Object.keys(weeklyDrafts).forEach(weekKey => {
+            const weekDraft = weeklyDrafts[weekKey];
+            Object.keys(weekDraft).forEach(day => {
+                Object.keys(weekDraft[day]).forEach(hour => {
+                    weekDraft[day][hour] = weekDraft[day][hour].map(val => val === id ? null : val);
+                });
+            });
         });
 
         await syncAllStateToDB();
@@ -1002,6 +1089,287 @@
         document.getElementById('crewDateSelect').scrollIntoView({ behavior: 'smooth' });
     }
 
+    // --- FUTURE SCHEDULE DRAFTS MANAGEMENT ---
+
+    function jumpToDraftWeek() {
+        const inputVal = document.getElementById('draftWeekSelect').value;
+        if (!inputVal) return alert("Please select a Monday date for the draft week.");
+        
+        const parts = inputVal.split('-');
+        const selDate = new Date(parts[0], parts[1]-1, parts[2]);
+        if (selDate.getDay() !== 1) {
+            return alert("Please select a Monday as the start of the week draft.");
+        }
+        
+        currentEditingDraftMondayStr = inputVal;
+        
+        // Initialize draft container structure if it doesn't exist by calculating the baseline
+        if (!weeklyDrafts[currentEditingDraftMondayStr]) {
+            // Calculate how many weeks away this draft is from the current week
+            const today = new Date();
+            const dayOfWeek = today.getDay();
+            const diff = today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
+            const currentMonday = new Date(today);
+            currentMonday.setDate(diff);
+            currentMonday.setHours(0,0,0,0);
+            
+            const draftMonday = new Date(selDate);
+            draftMonday.setHours(0,0,0,0);
+            
+            const offsetWeeks = Math.round((draftMonday - currentMonday) / (1000 * 60 * 60 * 24 * 7));
+            
+            // Populate the draft with the algorithm's calculated schedule
+            weeklyDrafts[currentEditingDraftMondayStr] = generateBaselineForDraft(offsetWeeks);
+        }
+        
+        const options = { month: 'short', day: 'numeric', year: 'numeric' };
+        const endOfWeek = new Date(selDate);
+        endOfWeek.setDate(selDate.getDate() + 4);
+        document.getElementById('draftEditorHeading').textContent = `Editing Draft for Week: ${selDate.toLocaleDateString(undefined, options)} - ${endOfWeek.toLocaleDateString(undefined, options)}`;
+        
+        renderDraftCalendar();
+    }
+
+    function generateBaselineForDraft(offsetWeeks) {
+        let draftObj = {};
+        let simWorkloads = {};
+        let simIndividual = {};
+        
+        // Setup initial simulation tracking
+        activeWorkers.forEach(w => { simWorkloads[w] = 0; simIndividual[w] = []; });
+        DAYS.forEach(day => { draftObj[day] = {}; });
+
+        // Run the scheduling logic without touching the DOM
+        HOURS.forEach((hour, hIndex) => {
+            DAYS.forEach((day, dIndex) => {
+                if (!draftObj[day][hour]) draftObj[day][hour] = [null, null, null];
+                
+                let hourVal = parseInt(hour);
+                if (hour.includes('pm') && hourVal !== 12) hourVal += 12;
+
+                const actualDate = getActualDateForDay(day, offsetWeeks);
+                const dateStr = getFormattedDate(actualDate);
+                const isHoliday = holidayData[dateStr] === true;
+
+                const isFridayRestricted = (day === 'Friday' && (hourVal < 10 || hourVal >= 17));
+                const isSaturdayRestricted = (day === 'Saturday' && (hourVal < 10 || hourVal >= 14));
+                
+                if (isHoliday || isFridayRestricted || isSaturdayRestricted) {
+                    return; 
+                }
+
+                let availableStaff = activeWorkers.filter(worker => {
+                    if (isWorkerOnVacation(worker, day, offsetWeeks)) return false;
+
+                    if (day === 'Friday') {
+                        const satDate = getActualDateForDay('Saturday', offsetWeeks);
+                        const satDateStr = getFormattedDate(satDate);
+                        const satCrew = saturdayCrews[satDateStr] || [];
+                        if (satCrew.includes(worker)) return false;
+                    }
+
+                    if (day === 'Saturday') {
+                        const satDate = getActualDateForDay('Saturday', offsetWeeks);
+                        const satDateStr = getFormattedDate(satDate);
+                        const crew = saturdayCrews[satDateStr] || [];
+                        if (!crew.includes(worker)) return false;
+                    } else {
+                        if (availabilityData[worker]?.[day]?.[hour] !== true) return false;
+                    }
+
+                    const shiftsToday = simIndividual[worker].filter(s => s.day === day).length;
+                    if (shiftsToday >= 3) return false;
+
+                    if (hIndex > 0) {
+                        const workedPrevHour = simIndividual[worker].some(s => 
+                            s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 1]
+                        );
+                        const workedTwoHoursAgo = (hIndex > 1) && simIndividual[worker].some(s => 
+                            s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 2]
+                        );
+                        if (workedPrevHour && workedTwoHoursAgo) return false;
+                    }
+                    return true;
+                });
+
+                const currentPeriod = getShiftPeriod(hour);
+
+                availableStaff.sort((a, b) => {
+                    let scoreA = 0; let scoreB = 0;
+                    
+                    if (hIndex > 0) {
+                        if (simIndividual[a].some(s => s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 1])) scoreA += 1;
+                        if (simIndividual[b].some(s => s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 1])) scoreB += 1;
+                    }
+                    
+                    if (workerStatus[a] === 'FT') scoreA += 1;
+                    if (workerStatus[b] === 'FT') scoreB += 1;
+                    
+                    const prefA = (workerPreference[a] === currentPeriod || workerPreference[a] === 'any') ? 0 : 1;
+                    const prefB = (workerPreference[b] === currentPeriod || workerPreference[b] === 'any') ? 0 : 1;
+                    scoreA += prefA; scoreB += prefB;
+                    
+                    if (scoreA !== scoreB) return scoreA - scoreB;
+                    if (simWorkloads[a] !== simWorkloads[b]) return simWorkloads[a] - simWorkloads[b];
+
+                    const shiftsTodayA = simIndividual[a].filter(s => s.day === day).length;
+                    const shiftsTodayB = simIndividual[b].filter(s => s.day === day).length;
+                    return shiftsTodayA - shiftsTodayB; 
+                });
+
+                let slotsToFill = (day === 'Saturday' || ['11am', '12pm', '1pm', '3pm'].includes(hour)) ? 3 : 2;
+                
+                let slotOverrides = overrideData[day]?.[hour] || [null, null, null];
+                let assigned = availableStaff.slice(0, slotsToFill);
+
+                for (let i = 0; i < slotsToFill; i++) {
+                    let isExtraSlot = i === 2; 
+
+                    if (slotOverrides[i] !== null && activeWorkers.includes(slotOverrides[i]) || slotOverrides[i] === "LEAVE_EMPTY") {
+                        draftObj[day][hour][i] = slotOverrides[i];
+                        if(slotOverrides[i] !== "LEAVE_EMPTY") {
+                            simWorkloads[slotOverrides[i]]++;
+                            simIndividual[slotOverrides[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: isExtraSlot });
+                        }
+                    } else if (assigned[i]) {
+                        draftObj[day][hour][i] = assigned[i];
+                        simWorkloads[assigned[i]]++;
+                        simIndividual[assigned[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: isExtraSlot });
+                    } else {
+                        // Force an empty slot to display clearly in the draft matrix when it is unstaffed
+                        draftObj[day][hour][i] = "LEAVE_EMPTY"; 
+                    }
+                }
+
+                if (slotsToFill === 2 && slotOverrides[2] !== null && slotOverrides[2] !== "LEAVE_EMPTY" && activeWorkers.includes(slotOverrides[2])) {
+                    draftObj[day][hour][2] = slotOverrides[2];
+                    simWorkloads[slotOverrides[2]]++;
+                    simIndividual[slotOverrides[2]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: true });
+                }
+            });
+        });
+        
+        return draftObj;
+    }
+
+    function loadDraftWeekData() {
+        // Automatically jump or prepare when date changes if desired
+    }
+
+    async function applyDraftOverride() {
+        if (!currentEditingDraftMondayStr) return alert("Please select and load a draft week first.");
+        
+        const day = document.getElementById('draftOverrideDay').value;
+        const hour = document.getElementById('draftOverrideHour').value;
+        const slotIdx = parseInt(document.getElementById('draftOverrideSlot').value);
+        const worker = document.getElementById('draftOverrideWorker').value;
+
+        if (worker === "") return alert("Please choose a worker or select [FORCE LEAVE SLOT UNSTAFFED].");
+        
+        if (!weeklyDrafts[currentEditingDraftMondayStr]) {
+            weeklyDrafts[currentEditingDraftMondayStr] = {};
+        }
+        if (!weeklyDrafts[currentEditingDraftMondayStr][day]) {
+            weeklyDrafts[currentEditingDraftMondayStr][day] = {};
+        }
+        if (!weeklyDrafts[currentEditingDraftMondayStr][day][hour]) {
+            weeklyDrafts[currentEditingDraftMondayStr][day][hour] = [null, null, null];
+        }
+
+        weeklyDrafts[currentEditingDraftMondayStr][day][hour][slotIdx] = worker;
+        renderDraftCalendar();
+        alert("Draft slot override updated locally. Click 'Save Draft Changes' to persist.");
+    }
+
+    async function saveCurrentDraft() {
+        if (!currentEditingDraftMondayStr) return alert("No active draft selected.");
+        await syncAllStateToDB();
+        alert("Draft schedule changes successfully saved to database!");
+    }
+
+    function renderDraftCalendar() {
+        const grid = document.getElementById('draftCalendarGrid');
+        if (!grid) return;
+        grid.innerHTML = '';
+        
+        if (!currentEditingDraftMondayStr) return;
+
+        // Calculate specific dates for this draft week
+        const parts = currentEditingDraftMondayStr.split('-');
+        const mondayDate = new Date(parts[0], parts[1]-1, parts[2]);
+        
+        const draftWeekDates = {};
+        DAYS.forEach((day, index) => {
+            const currentDate = new Date(mondayDate);
+            currentDate.setDate(mondayDate.getDate() + index);
+            draftWeekDates[day] = `${day} (${currentDate.getMonth() + 1}/${currentDate.getDate()})`;
+        });
+
+        let corner = document.createElement('div');
+        corner.className = 'grid-header'; grid.appendChild(corner);
+        DAYS.forEach(day => { 
+            let th = document.createElement('div'); 
+            th.className = 'grid-header'; 
+            th.textContent = draftWeekDates[day]; 
+            grid.appendChild(th); 
+        });
+
+        const activeDraft = weeklyDrafts[currentEditingDraftMondayStr] || {};
+
+        HOURS.forEach((hour, hIndex) => {
+            let labelDiv = document.createElement('div');
+            labelDiv.className = 'time-slot'; labelDiv.style.gridRowStart = hIndex + 2; labelDiv.textContent = HOUR_LABELS[hIndex];
+            grid.appendChild(labelDiv);
+
+            DAYS.forEach((day, dIndex) => {
+                let hourVal = parseInt(hour);
+                if (hour.includes('pm') && hourVal !== 12) hourVal += 12;
+
+                const dayOffset = dIndex;
+                const cellDate = new Date(mondayDate);
+                cellDate.setDate(mondayDate.getDate() + dayOffset);
+                const dateStr = getFormattedDate(cellDate);
+                const isHoliday = holidayData[dateStr] === true;
+
+                const isFridayRestricted = (day === 'Friday' && (hourVal < 10 || hourVal >= 17));
+                const isSaturdayRestricted = (day === 'Saturday' && (hourVal < 10 || hourVal >= 14));
+                
+                if (isHoliday || isFridayRestricted || isSaturdayRestricted) {
+                    let disabledDiv = document.createElement('div');
+                    disabledDiv.className = 'slot-disabled';
+                    disabledDiv.style.gridRowStart = hIndex + 2;
+                    disabledDiv.style.gridColumnStart = dIndex + 2;
+                    grid.appendChild(disabledDiv);
+                    return;
+                }
+
+                let cellDiv = document.createElement('div');
+                cellDiv.className = 'day-slot'; cellDiv.style.gridRowStart = hIndex + 2; cellDiv.style.gridColumnStart = dIndex + 2;
+
+                let slotsToFill = (day === 'Saturday' || ['11am', '12pm', '1pm', '3pm'].includes(hour)) ? 3 : 2;
+                let draftOverrides = activeDraft[day]?.[hour] || [null, null, null];
+
+                for (let i = 0; i < slotsToFill; i++) {
+                    let pill = document.createElement('div');
+                    let isExtraSlot = i === 2; 
+
+                    if (draftOverrides[i] !== null && activeWorkers.includes(draftOverrides[i]) || draftOverrides[i] === "LEAVE_EMPTY") {
+                        if(draftOverrides[i] !== "LEAVE_EMPTY") {
+                            pill.className = isExtraSlot ? 'worker-pill extra-help' : 'worker-pill override'; 
+                            pill.textContent = workerNames[draftOverrides[i]] || draftOverrides[i]; 
+                        } else {
+                            pill.className = 'worker-pill empty'; pill.textContent = 'Forced Empty';
+                        }
+                    } else {
+                        pill.className = 'worker-pill empty'; pill.textContent = 'Auto / Unset';
+                    }
+                    cellDiv.appendChild(pill);
+                }
+                grid.appendChild(cellDiv);
+            });
+        });
+    }
+
     // --- UI HELPERS ---
 
     function switchTab(tabId) {
@@ -1045,6 +1413,24 @@
             renderYearlySaturdayTable();
         } else if(subTabId === 'general') {
             checkHolidayStatus();
+        } else if(subTabId === 'drafts') {
+            const draftDaySelect = document.getElementById('draftOverrideDay');
+            if (draftDaySelect && draftDaySelect.options.length === 0) {
+                DAYS.forEach(day => draftDaySelect.appendChild(new Option(day, day)));
+            }
+            const draftHourSelect = document.getElementById('draftOverrideHour');
+            if (draftHourSelect && draftHourSelect.options.length === 0) {
+                HOURS.forEach((hour, idx) => draftHourSelect.appendChild(new Option(HOUR_LABELS[idx], hour)));
+            }
+            const draftWorkerSelect = document.getElementById('draftOverrideWorker');
+            if (draftWorkerSelect) {
+                draftWorkerSelect.innerHTML = '';
+                draftWorkerSelect.appendChild(new Option("-- Choose Worker --", ""));
+                draftWorkerSelect.appendChild(new Option("[FORCE LEAVE SLOT UNSTAFFED]", "LEAVE_EMPTY"));
+                activeWorkers.forEach(worker => {
+                    draftWorkerSelect.appendChild(new Option(workerNames[worker] || worker, worker));
+                });
+            }
         }
     }
 
@@ -1117,12 +1503,12 @@
             HOURS.forEach((hour, idx) => searchHourSelect.appendChild(new Option(HOUR_LABELS[idx], hour)));
         }
 
-        const weekDates = getWeekDates();
+        const weekDates = getWeekDates(publicScheduleWeekOffset);
         
         const formTableHead = document.querySelector('#formTableBody')?.parentElement.querySelector('thead tr');
         if (formTableHead) {
             const daysToShow = DAYS.filter(d => d !== 'Saturday');
-            formTableHead.innerHTML = `<th>Time Slot</th>` + daysToShow.map(day => `<th>${getWeekDates()[day]}</th>`).join('');
+            formTableHead.innerHTML = `<th>Time Slot</th>` + daysToShow.map(day => `<th>${getWeekDates(0)[day]}</th>`).join('');
         }
 
         const tbody = document.getElementById('formTableBody');
@@ -1235,6 +1621,18 @@
         // --- NEW SATURDAY LOGIC END ---
     }
 
+    function changePublicWeek(direction) {
+        publicScheduleWeekOffset += direction;
+        updateHeadingDate();
+        generateSchedule();
+    }
+
+    function resetPublicWeekToCurrent() {
+        publicScheduleWeekOffset = 0;
+        updateHeadingDate();
+        generateSchedule();
+    }
+
     function generateSchedule() {
         const grid = document.getElementById('calendarGrid');
         if(grid) grid.innerHTML = ''; 
@@ -1245,7 +1643,9 @@
 
         activeWorkers.forEach(w => { finalCalculatedWorkloads[w] = 0; individualWorkerSchedules[w] = []; });
 
-        const weekDates = getWeekDates();
+        const weekDates = getWeekDates(publicScheduleWeekOffset);
+        const mondayStr = getMondayDateStr(publicScheduleWeekOffset);
+        const activeDraftForWeek = weeklyDrafts[mondayStr] || null;
 
         if(grid) {
             let corner = document.createElement('div');
@@ -1268,7 +1668,7 @@
                 let hourVal = parseInt(hour);
                 if (hour.includes('pm') && hourVal !== 12) hourVal += 12;
 
-                const actualDate = getActualDateForDay(day);
+                const actualDate = getActualDateForDay(day, publicScheduleWeekOffset);
                 const dateStr = getFormattedDate(actualDate);
                 const isHoliday = holidayData[dateStr] === true;
 
@@ -1288,17 +1688,17 @@
                 cellDiv.className = 'day-slot'; cellDiv.style.gridRowStart = hIndex + 2; cellDiv.style.gridColumnStart = dIndex + 2;
 
                 let availableStaff = activeWorkers.filter(worker => {
-                    if (isWorkerOnVacation(worker, day)) return false;
+                    if (isWorkerOnVacation(worker, day, publicScheduleWeekOffset)) return false;
 
                     if (day === 'Friday') {
-                        const satDate = getActualDateForDay('Saturday');
+                        const satDate = getActualDateForDay('Saturday', publicScheduleWeekOffset);
                         const satDateStr = getFormattedDate(satDate);
                         const satCrew = saturdayCrews[satDateStr] || [];
                         if (satCrew.includes(worker)) return false;
                     }
 
                     if (day === 'Saturday') {
-                        const satDate = getActualDateForDay('Saturday');
+                        const satDate = getActualDateForDay('Saturday', publicScheduleWeekOffset);
                         const satDateStr = getFormattedDate(satDate);
                         const crew = saturdayCrews[satDateStr] || [];
                         if (!crew.includes(worker)) return false;
@@ -1352,19 +1752,27 @@
                 });
 
                 let slotsToFill = (day === 'Saturday' || ['11am', '12pm', '1pm', '3pm'].includes(hour)) ? 3 : 2;
+                
+                // Use draft overrides for this week if available, otherwise use global standard overrides
+                let slotOverrides = [null, null, null];
+                if (activeDraftForWeek && activeDraftForWeek[day]?.[hour]) {
+                    slotOverrides = activeDraftForWeek[day][hour];
+                } else {
+                    slotOverrides = overrideData[day]?.[hour] || [null, null, null];
+                }
+
                 let assigned = availableStaff.slice(0, slotsToFill);
-                let systemOverrides = overrideData[day]?.[hour] || [null, null, null];
 
                 for (let i = 0; i < slotsToFill; i++) {
                     let pill = document.createElement('div');
                     let isExtraSlot = i === 2; 
 
-                    if (systemOverrides[i] !== null && activeWorkers.includes(systemOverrides[i]) || systemOverrides[i] === "LEAVE_EMPTY") {
-                        if(systemOverrides[i] !== "LEAVE_EMPTY") {
+                    if (slotOverrides[i] !== null && activeWorkers.includes(slotOverrides[i]) || slotOverrides[i] === "LEAVE_EMPTY") {
+                        if(slotOverrides[i] !== "LEAVE_EMPTY") {
                             pill.className = isExtraSlot ? 'worker-pill extra-help' : 'worker-pill override'; 
-                            pill.textContent = workerNames[systemOverrides[i]] || systemOverrides[i]; 
-                            finalCalculatedWorkloads[systemOverrides[i]]++;
-                            individualWorkerSchedules[systemOverrides[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: isExtraSlot });
+                            pill.textContent = workerNames[slotOverrides[i]] || slotOverrides[i]; 
+                            finalCalculatedWorkloads[slotOverrides[i]]++;
+                            individualWorkerSchedules[slotOverrides[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: isExtraSlot });
                         } else {
                             pill.className = 'worker-pill empty'; pill.textContent = 'Forced Empty';
                             emptySlotsTracker.push({ day, hourLabel: HOUR_LABELS[hIndex], slotIndex: i + 1 });
@@ -1381,12 +1789,12 @@
                     cellDiv.appendChild(pill);
                 }
 
-                if (slotsToFill === 2 && systemOverrides[2] !== null && systemOverrides[2] !== "LEAVE_EMPTY" && activeWorkers.includes(systemOverrides[2])) {
+                if (slotsToFill === 2 && slotOverrides[2] !== null && slotOverrides[2] !== "LEAVE_EMPTY" && activeWorkers.includes(slotOverrides[2])) {
                     let extraPill = document.createElement('div'); 
                     extraPill.className = 'worker-pill extra-help'; 
-                    extraPill.textContent = workerNames[systemOverrides[2]] || systemOverrides[2];
-                    finalCalculatedWorkloads[systemOverrides[2]]++;
-                    individualWorkerSchedules[systemOverrides[2]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: true });
+                    extraPill.textContent = workerNames[slotOverrides[2]] || slotOverrides[2];
+                    finalCalculatedWorkloads[slotOverrides[2]]++;
+                    individualWorkerSchedules[slotOverrides[2]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: true });
                     cellDiv.appendChild(extraPill);
                 }
                 if(grid) grid.appendChild(cellDiv);
@@ -1500,10 +1908,10 @@
         let availableWorkers = [];
 
         activeWorkers.forEach(worker => {
-            if (isWorkerOnVacation(worker, day)) return;
+            if (isWorkerOnVacation(worker, day, publicScheduleWeekOffset)) return;
             
             if (day === 'Friday' || day === 'Saturday') {
-                const satDate = getActualDateForDay('Saturday');
+                const satDate = getActualDateForDay('Saturday', publicScheduleWeekOffset);
                 const satDateStr = getFormattedDate(satDate);
                 const crew = saturdayCrews[satDateStr] || [];
                 
@@ -1556,18 +1964,17 @@
     }
     
     function updateHeadingDate() {
-        const today = new Date();
-        const dayOfWeek = today.getDay(); 
-        const diff = today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
-        const monday = new Date(today.setDate(diff));
-        
-        const friday = new Date(monday);
-        friday.setDate(monday.getDate() + 4);
+        const monday = getActualDateForDay('Monday', publicScheduleWeekOffset);
+        const friday = getActualDateForDay('Friday', publicScheduleWeekOffset);
 
         const options = { month: 'long', day: 'numeric' };
         const dateString = `${monday.toLocaleDateString(undefined, options)} - ${friday.toLocaleDateString(undefined, options)}, ${monday.getFullYear()}`;
         
-        document.getElementById('calendar-heading').textContent = `Weekly Schedule: ${dateString}`;
+        let prefix = "Weekly Schedule";
+        if (publicScheduleWeekOffset > 0) prefix = `Weekly Schedule (Future Week +${publicScheduleWeekOffset})`;
+        else if (publicScheduleWeekOffset < 0) prefix = `Weekly Schedule (Past Week ${publicScheduleWeekOffset})`;
+
+        document.getElementById('calendar-heading').textContent = `${prefix}: ${dateString}`;
     }
 
     document.addEventListener("DOMContentLoaded", () => {
