@@ -1103,23 +1103,15 @@
         
         currentEditingDraftMondayStr = inputVal;
         
-        // Initialize draft container structure if it doesn't exist by calculating the baseline
+        // Initialize draft container structure with empty (null) overrides if it doesn't exist
         if (!weeklyDrafts[currentEditingDraftMondayStr]) {
-            // Calculate how many weeks away this draft is from the current week
-            const today = new Date();
-            const dayOfWeek = today.getDay();
-            const diff = today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
-            const currentMonday = new Date(today);
-            currentMonday.setDate(diff);
-            currentMonday.setHours(0,0,0,0);
-            
-            const draftMonday = new Date(selDate);
-            draftMonday.setHours(0,0,0,0);
-            
-            const offsetWeeks = Math.round((draftMonday - currentMonday) / (1000 * 60 * 60 * 24 * 7));
-            
-            // Populate the draft with the algorithm's calculated schedule
-            weeklyDrafts[currentEditingDraftMondayStr] = generateBaselineForDraft(offsetWeeks);
+            weeklyDrafts[currentEditingDraftMondayStr] = {};
+            DAYS.forEach(day => {
+                weeklyDrafts[currentEditingDraftMondayStr][day] = {};
+                HOURS.forEach(hour => {
+                    weeklyDrafts[currentEditingDraftMondayStr][day][hour] = [null, null, null];
+                });
+            });
         }
         
         const options = { month: 'short', day: 'numeric', year: 'numeric' };
@@ -1128,128 +1120,6 @@
         document.getElementById('draftEditorHeading').textContent = `Editing Draft for Week: ${selDate.toLocaleDateString(undefined, options)} - ${endOfWeek.toLocaleDateString(undefined, options)}`;
         
         renderDraftCalendar();
-    }
-
-    function generateBaselineForDraft(offsetWeeks) {
-        let draftObj = {};
-        let simWorkloads = {};
-        let simIndividual = {};
-        
-        // Setup initial simulation tracking
-        activeWorkers.forEach(w => { simWorkloads[w] = 0; simIndividual[w] = []; });
-        DAYS.forEach(day => { draftObj[day] = {}; });
-
-        // Run the scheduling logic without touching the DOM
-        HOURS.forEach((hour, hIndex) => {
-            DAYS.forEach((day, dIndex) => {
-                if (!draftObj[day][hour]) draftObj[day][hour] = [null, null, null];
-                
-                let hourVal = parseInt(hour);
-                if (hour.includes('pm') && hourVal !== 12) hourVal += 12;
-
-                const actualDate = getActualDateForDay(day, offsetWeeks);
-                const dateStr = getFormattedDate(actualDate);
-                const isHoliday = holidayData[dateStr] === true;
-
-                const isFridayRestricted = (day === 'Friday' && (hourVal < 10 || hourVal >= 17));
-                const isSaturdayRestricted = (day === 'Saturday' && (hourVal < 10 || hourVal >= 14));
-                
-                if (isHoliday || isFridayRestricted || isSaturdayRestricted) {
-                    return; 
-                }
-
-                let availableStaff = activeWorkers.filter(worker => {
-                    if (isWorkerOnVacation(worker, day, offsetWeeks)) return false;
-
-                    if (day === 'Friday') {
-                        const satDate = getActualDateForDay('Saturday', offsetWeeks);
-                        const satDateStr = getFormattedDate(satDate);
-                        const satCrew = saturdayCrews[satDateStr] || [];
-                        if (satCrew.includes(worker)) return false;
-                    }
-
-                    if (day === 'Saturday') {
-                        const satDate = getActualDateForDay('Saturday', offsetWeeks);
-                        const satDateStr = getFormattedDate(satDate);
-                        const crew = saturdayCrews[satDateStr] || [];
-                        if (!crew.includes(worker)) return false;
-                    } else {
-                        if (availabilityData[worker]?.[day]?.[hour] !== true) return false;
-                    }
-
-                    const shiftsToday = simIndividual[worker].filter(s => s.day === day).length;
-                    if (shiftsToday >= 3) return false;
-
-                    if (hIndex > 0) {
-                        const workedPrevHour = simIndividual[worker].some(s => 
-                            s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 1]
-                        );
-                        const workedTwoHoursAgo = (hIndex > 1) && simIndividual[worker].some(s => 
-                            s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 2]
-                        );
-                        if (workedPrevHour && workedTwoHoursAgo) return false;
-                    }
-                    return true;
-                });
-
-                const currentPeriod = getShiftPeriod(hour);
-
-                availableStaff.sort((a, b) => {
-                    let scoreA = 0; let scoreB = 0;
-                    
-                    if (hIndex > 0) {
-                        if (simIndividual[a].some(s => s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 1])) scoreA += 1;
-                        if (simIndividual[b].some(s => s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 1])) scoreB += 1;
-                    }
-                    
-                    if (workerStatus[a] === 'FT') scoreA += 1;
-                    if (workerStatus[b] === 'FT') scoreB += 1;
-                    
-                    const prefA = (workerPreference[a] === currentPeriod || workerPreference[a] === 'any') ? 0 : 1;
-                    const prefB = (workerPreference[b] === currentPeriod || workerPreference[b] === 'any') ? 0 : 1;
-                    scoreA += prefA; scoreB += prefB;
-                    
-                    if (scoreA !== scoreB) return scoreA - scoreB;
-                    if (simWorkloads[a] !== simWorkloads[b]) return simWorkloads[a] - simWorkloads[b];
-
-                    const shiftsTodayA = simIndividual[a].filter(s => s.day === day).length;
-                    const shiftsTodayB = simIndividual[b].filter(s => s.day === day).length;
-                    return shiftsTodayA - shiftsTodayB; 
-                });
-
-                let slotsToFill = (day === 'Saturday' || ['11am', '12pm', '1pm', '3pm'].includes(hour)) ? 3 : 2;
-                
-                let slotOverrides = overrideData[day]?.[hour] || [null, null, null];
-                let assigned = availableStaff.slice(0, slotsToFill);
-
-                for (let i = 0; i < slotsToFill; i++) {
-                    let isExtraSlot = i === 2; 
-
-                    if (slotOverrides[i] !== null && activeWorkers.includes(slotOverrides[i]) || slotOverrides[i] === "LEAVE_EMPTY") {
-                        draftObj[day][hour][i] = slotOverrides[i];
-                        if(slotOverrides[i] !== "LEAVE_EMPTY") {
-                            simWorkloads[slotOverrides[i]]++;
-                            simIndividual[slotOverrides[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: isExtraSlot });
-                        }
-                    } else if (assigned[i]) {
-                        draftObj[day][hour][i] = assigned[i];
-                        simWorkloads[assigned[i]]++;
-                        simIndividual[assigned[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: isExtraSlot });
-                    } else {
-                        // Force an empty slot to display clearly in the draft matrix when it is unstaffed
-                        draftObj[day][hour][i] = "LEAVE_EMPTY"; 
-                    }
-                }
-
-                if (slotsToFill === 2 && slotOverrides[2] !== null && slotOverrides[2] !== "LEAVE_EMPTY" && activeWorkers.includes(slotOverrides[2])) {
-                    draftObj[day][hour][2] = slotOverrides[2];
-                    simWorkloads[slotOverrides[2]]++;
-                    simIndividual[slotOverrides[2]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: true });
-                }
-            });
-        });
-        
-        return draftObj;
     }
 
     function loadDraftWeekData() {
@@ -1294,10 +1164,20 @@
         
         if (!currentEditingDraftMondayStr) return;
 
-        // Calculate specific dates for this draft week
+        // Calculate offset weeks from current week for the draft week
+        const today = new Date();
+        const dayOfWeek = today.getDay();
+        const diff = today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
+        const currentMonday = new Date(today);
+        currentMonday.setDate(diff);
+        currentMonday.setHours(0,0,0,0);
+        
         const parts = currentEditingDraftMondayStr.split('-');
         const mondayDate = new Date(parts[0], parts[1]-1, parts[2]);
+        mondayDate.setHours(0,0,0,0);
         
+        const draftOffsetWeeks = Math.round((mondayDate - currentMonday) / (1000 * 60 * 60 * 24 * 7));
+
         const draftWeekDates = {};
         DAYS.forEach((day, index) => {
             const currentDate = new Date(mondayDate);
@@ -1314,7 +1194,10 @@
             grid.appendChild(th); 
         });
 
-        const activeDraft = weeklyDrafts[currentEditingDraftMondayStr] || {};
+        const activeDraftForWeek = weeklyDrafts[currentEditingDraftMondayStr] || {};
+        let draftWorkloads = {};
+        let draftIndividual = {};
+        activeWorkers.forEach(w => { draftWorkloads[w] = 0; draftIndividual[w] = []; });
 
         HOURS.forEach((hour, hIndex) => {
             let labelDiv = document.createElement('div');
@@ -1346,8 +1229,63 @@
                 let cellDiv = document.createElement('div');
                 cellDiv.className = 'day-slot'; cellDiv.style.gridRowStart = hIndex + 2; cellDiv.style.gridColumnStart = dIndex + 2;
 
+                let availableStaff = activeWorkers.filter(worker => {
+                    if (isWorkerOnVacation(worker, day, draftOffsetWeeks)) return false;
+
+                    if (day === 'Friday') {
+                        const satDate = getActualDateForDay('Saturday', draftOffsetWeeks);
+                        const satDateStr = getFormattedDate(satDate);
+                        const satCrew = saturdayCrews[satDateStr] || [];
+                        if (satCrew.includes(worker)) return false;
+                    }
+
+                    if (day === 'Saturday') {
+                        const satDate = getActualDateForDay('Saturday', draftOffsetWeeks);
+                        const satDateStr = getFormattedDate(satDate);
+                        const crew = saturdayCrews[satDateStr] || [];
+                        if (!crew.includes(worker)) return false;
+                    } else {
+                        if (availabilityData[worker]?.[day]?.[hour] !== true) return false;
+                    }
+
+                    const shiftsToday = draftIndividual[worker].filter(s => s.day === day).length;
+                    if (shiftsToday >= 3) return false;
+
+                    if (hIndex > 0) {
+                        const workedPrevHour = draftIndividual[worker].some(s => 
+                            s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 1]
+                        );
+                        const workedTwoHoursAgo = (hIndex > 1) && draftIndividual[worker].some(s => 
+                            s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 2]
+                        );
+                        if (workedPrevHour && workedTwoHoursAgo) return false;
+                    }
+                    return true;
+                });
+
+                const currentPeriod = getShiftPeriod(hour);
+
+                availableStaff.sort((a, b) => {
+                    let scoreA = 0; let scoreB = 0;
+                    if (hIndex > 0) {
+                        if (draftIndividual[a].some(s => s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 1])) scoreA += 1;
+                        if (draftIndividual[b].some(s => s.day === day && s.timeLabel === HOUR_LABELS[hIndex - 1])) scoreB += 1;
+                    }
+                    if (workerStatus[a] === 'FT') scoreA += 1;
+                    if (workerStatus[b] === 'FT') scoreB += 1;
+                    const prefA = (workerPreference[a] === currentPeriod || workerPreference[a] === 'any') ? 0 : 1;
+                    const prefB = (workerPreference[b] === currentPeriod || workerPreference[b] === 'any') ? 0 : 1;
+                    scoreA += prefA; scoreB += prefB;
+                    if (scoreA !== scoreB) return scoreA - scoreB;
+                    if (draftWorkloads[a] !== draftWorkloads[b]) return draftWorkloads[a] - draftWorkloads[b];
+                    const shiftsTodayA = draftIndividual[a].filter(s => s.day === day).length;
+                    const shiftsTodayB = draftIndividual[b].filter(s => s.day === day).length;
+                    return shiftsTodayA - shiftsTodayB; 
+                });
+
                 let slotsToFill = (day === 'Saturday' || ['11am', '12pm', '1pm', '3pm'].includes(hour)) ? 3 : 2;
-                let draftOverrides = activeDraft[day]?.[hour] || [null, null, null];
+                let draftOverrides = activeDraftForWeek[day]?.[hour] || [null, null, null];
+                let assigned = availableStaff.slice(0, slotsToFill);
 
                 for (let i = 0; i < slotsToFill; i++) {
                     let pill = document.createElement('div');
@@ -1357,13 +1295,29 @@
                         if(draftOverrides[i] !== "LEAVE_EMPTY") {
                             pill.className = isExtraSlot ? 'worker-pill extra-help' : 'worker-pill override'; 
                             pill.textContent = workerNames[draftOverrides[i]] || draftOverrides[i]; 
+                            draftWorkloads[draftOverrides[i]]++;
+                            draftIndividual[draftOverrides[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: isExtraSlot });
                         } else {
                             pill.className = 'worker-pill empty'; pill.textContent = 'Forced Empty';
                         }
+                    } else if (assigned[i]) {
+                        pill.className = isExtraSlot ? 'worker-pill extra-help' : 'worker-pill'; 
+                        pill.textContent = workerNames[assigned[i]] || assigned[i]; 
+                        draftWorkloads[assigned[i]]++;
+                        draftIndividual[assigned[i]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: isExtraSlot });
                     } else {
-                        pill.className = 'worker-pill empty'; pill.textContent = 'Auto / Unset';
+                        pill.className = 'worker-pill empty'; pill.textContent = 'Unstaffed Slot';
                     }
                     cellDiv.appendChild(pill);
+                }
+
+                if (slotsToFill === 2 && draftOverrides[2] !== null && draftOverrides[2] !== "LEAVE_EMPTY" && activeWorkers.includes(draftOverrides[2])) {
+                    let extraPill = document.createElement('div'); 
+                    extraPill.className = 'worker-pill extra-help'; 
+                    extraPill.textContent = workerNames[draftOverrides[2]] || draftOverrides[2];
+                    draftWorkloads[draftOverrides[2]]++;
+                    draftIndividual[draftOverrides[2]].push({ day: day, timeLabel: HOUR_LABELS[hIndex], isExtra: true });
+                    cellDiv.appendChild(extraPill);
                 }
                 grid.appendChild(cellDiv);
             });
